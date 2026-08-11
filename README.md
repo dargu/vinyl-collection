@@ -9,7 +9,8 @@ A static site -- plain HTML, CSS, and React loaded from a CDN (no build
 step, no `npm install`). All data lives in Supabase (Postgres), reached
 directly from the browser using the rules in `../app/schema.sql`.
 
-- `Vinyl Collection.html` -- entry point
+- `index.html` -- entry point (renamed from "Vinyl Collection.html" so it
+  loads automatically at the site's root URL)
 - `supabase-client.js` -- the only file that talks to Supabase; every
   component calls functions from here
 - `shelf.jsx`, `detail.jsx`, `admin.jsx`, `dashboard.jsx`, `cover-art.jsx`,
@@ -24,7 +25,7 @@ See `../app/FEATURE_IDEAS.md` for what's deliberately not built yet.
 ```
 python3 -m http.server 8000
 ```
-then open `http://localhost:8000/Vinyl%20Collection.html`. Opening the
+then open `http://localhost:8000/`. Opening the
 HTML file directly (double-click) won't work -- browsers block a local
 file from loading other local files, which is why a tiny server is
 needed even just to look at it.
