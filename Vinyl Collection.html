@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Viniles &amp; Galletas — darguelles</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css?v=27" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+
+<script src="supabase-client.js?v=1"></script>
+<script type="text/babel" src="tweaks-panel.jsx?v=1"></script>
+<script type="text/babel" src="cover-art.jsx?v=1"></script>
+<script type="text/babel" src="shelf.jsx?v=1"></script>
+<script type="text/babel" src="detail.jsx?v=1"></script>
+<script type="text/babel" src="admin.jsx?v=1"></script>
+<script type="text/babel" src="dashboard.jsx?v=1"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="env,react">
+const { useState, useEffect, useMemo } = React;
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "theme": "light",
+  "density": "compact",
+  "accent": "#C24A28"
+}/*EDITMODE-END*/;
+
+function readHash() {
+  const h = (location.hash || "").replace(/^#/, "");
+  return h || "/";
+}
+
+function App() {
+  const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  const [route, setRoute] = useState(readHash());
+  const [records, setRecords] = useState([]);
+  const [wishlist, setWishlist] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [active, setActive] = useState(null);
+  const [isOwner, setIsOwner] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
+
+  useEffect(() => {
+    const onHash = () => setRoute(readHash());
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+
+  // accent live
+  useEffect(() => {
+    document.documentElement.style.setProperty("--accent", t.accent);
+  }, [t.accent]);
+
+  // Load the real collection + wishlist from Supabase once, on mount.
+  // Everything the site shows comes from here now -- there's no
+  // static data.js anymore.
+  async function reload() {
+    setLoading(true);
+    setLoadError("");
+    try {
+      const [recs, wish] = await Promise.all([
+        window.VC.fetchCollection(),
+        window.VC.fetchWishlist(),
+      ]);
+      setRecords(recs);
+      setWishlist(wish);
+    } catch (e) {
+      console.error(e);
+      setLoadError("Couldn't load the collection. Check your connection and reload the page.");
+    } finally {
+      setLoading(false);
+    }
+  }
+  useEffect(() => { reload(); }, []);
+
+  // Real auth session, not a sessionStorage flag. Supabase keeps the
+  // session in the browser itself, so this survives refreshes on its
+  // own -- we don't manage that part.
+  useEffect(() => {
+    window.VC.getSession().then((session) => {
+      setIsOwner(window.VC.isOwnerSession(session));
+      setAuthChecked(true);
+    });
+    const { data: sub } = window.VC.sb.auth.onAuthStateChange((_event, session) => {
+      setIsOwner(window.VC.isOwnerSession(session));
+    });
+    return () => { sub && sub.subscription && sub.subscription.unsubscribe(); };
+  }, []);
+
+  function go(path) { location.hash = path; }
+
+  async function addRecord(fields) {
+    const rec = await window.VC.insertRecord(fields);
+    setRecords((rs) => [rec, ...rs]);
+    return rec;
+  }
+  async function addWish(fields) {
+    await window.VC.insertWishlistItem(fields);
+    await reload();
+  }
+  async function removeWish(id) {
+    await window.VC.removeWishlistItem(id);
+    setWishlist((xs) => xs.filter((w) => w.id !== id));
+  }
+  async function markWishBought(wishItem, fields) {
+    await window.VC.markWishlistBought(wishItem, fields);
+    await reload();
+    go("/");
+  }
+
+  const isAdminRoute = route.startsWith("/admin");
+  const adminTab = isAdminRoute ? (route.split("/")[2] || "dashboard") : null;
+
+  if (loading) {
+    return <div className="app" data-theme={t.theme} data-density={t.density}><div className="empty"><div className="empty__title">Loading the collection…</div></div></div>;
+  }
+  if (loadError) {
+    return <div className="app" data-theme={t.theme} data-density={t.density}><div className="empty"><div className="empty__title">{loadError}</div></div></div>;
+  }
+
+  return (
+    <div className="app" data-theme={t.theme} data-density={t.density}>
+      <main className="main">
+        {route === "/" && <BrowsePage records={records} onOpen={setActive} density={t.density} isOwner={isOwner} go={go} ribbon={<NavRibbon route={route} adminTab={adminTab} go={go} records={records} wishlist={wishlist} isOwner={isOwner} />} />}
+        {route === "/wishlist" && <PublicWishlistPage items={wishlist} isOwner={isOwner} go={go} ribbon={<NavRibbon route={route} adminTab={adminTab} go={go} records={records} wishlist={wishlist} isOwner={isOwner} />} />}
+
+        {isAdminRoute && !isOwner && (
+          <AdminGate onUnlock={() => setIsOwner(true)} />
+        )}
+        {isAdminRoute && isOwner && (
+          <AdminPage
+            tab={adminTab}
+            records={records} wishlist={wishlist}
+            onAdd={addRecord}
+            onWishAdd={addWish} onWishRemove={removeWish} onWishMarkBought={markWishBought}
+            isOwner={isOwner} go={go}
+            onOpen={setActive}
+            ribbon={<NavRibbon route={route} adminTab={adminTab} go={go} records={records} wishlist={wishlist} isOwner={isOwner} />}
+          />
+        )}
+
+        <footer className="sitefoot">
+          <span className="mono">{records.length} RECORDS · LIVE</span>
+          <span className="dot">·</span>
+          <span className="mono">VINILES &amp; GALLETAS / DARGUELLES</span>
+        </footer>
+      </main>
+
+      {active && <Detail rec={records.find(r => r.id === active.id) || active} onClose={() => setActive(null)} isOwner={isOwner} />}
+
+      {isOwner && (
+        <div className="ownerbar">
+          <span><span className="dot-live" />Owner mode</span>
+          <button onClick={async () => { await window.VC.signOut(); setIsOwner(false); go("/"); }}>Sign out</button>
+        </div>
+      )}
+
+      <TweaksPanel>
+        <TweakSection label="Theme" />
+        <TweakRadio label="Mode" value={t.theme} options={["light","dark"]} onChange={(v) => setTweak("theme", v)} />
+        <TweakColor label="Accent" value={t.accent} onChange={(v) => setTweak("accent", v)} />
+        <TweakSection label="Layout" />
+        <TweakRadio label="Density" value={t.density} options={["compact","regular","comfy"]} onChange={(v) => setTweak("density", v)} />
+      </TweaksPanel>
+    </div>
+  );
+}
+
+// ── Browse pages ──────────────────────────────────────────────────────────
+// Note: the "On loan" tab from the old prototype is gone for now --
+// it wasn't backed by real storage (see FEATURE_IDEAS.md "Loans
+// feature"). Better to leave it out than ship a tab that resets on
+// every refresh and pretends otherwise.
+function NavRibbon({ route, adminTab, go, records, wishlist, isOwner }) {
+  const Tab = ({ to, label, count, active }) => (
+    <button className={"ribbon__tab" + (active ? " on" : "")} onClick={() => go(to)}>
+      <span>{label}</span>{count != null && <span className="ribbon__count mono">{count}</span>}
+    </button>
+  );
+  return (
+    <nav className="ribbon">
+      <Tab to="/" label="All records" count={records.length} active={route === "/"} />
+      <Tab to="/wishlist" label="Wishlist" count={wishlist.length} active={route === "/wishlist"} />
+      {isOwner && <>
+        <span className="ribbon__sep" />
+        <span className="ribbon__group">OWNER</span>
+        <Tab to="/admin" label="Dashboard" active={adminTab === "dashboard"} />
+        <Tab to="/admin/add" label="Add record" active={adminTab === "add"} />
+        <Tab to="/admin/wishlist" label="Manage wishlist" active={adminTab === "wishlist"} />
+      </>}
+    </nav>
+  );
+}
+
+function BrowsePage({ records, onOpen, density, ribbon, isOwner, go }) {
+  return (
+    <>
+      <header className="page-h">
+        <div>
+          <h1 className="page-h__title">The Collection</h1>
+          <div className="page-h__sub">{records.length} RECORDS · {new Set(records.map(r=>r.genre)).size} GENRES · {new Set(records.map(r=>r.artist)).size} ARTISTS</div>
+        </div>
+        <div className="page-h__right">
+          {!isOwner && <button className="btn" onClick={() => go("/admin")}>Owner sign-in →</button>}
+        </div>
+      </header>
+      {ribbon}
+      <ShelfView records={records} onOpen={onOpen} density={density} loans={[]} />
+    </>
+  );
+}
+
+function PublicWishlistPage({ items, ribbon, isOwner, go }) {
+  return (
+    <>
+      <header className="page-h">
+        <div>
+          <h1 className="page-h__title">Wishlist</h1>
+          <div className="page-h__sub">{items.length} RECORDS · DIEGO'S WANT-LIST</div>
+        </div>
+        <div className="page-h__right">
+          {!isOwner && <button className="btn" onClick={() => go("/admin")}>Owner sign-in →</button>}
+        </div>
+      </header>
+      {ribbon}
+      {(() => {
+        const notBought = items.filter((w) => !w.bought);
+        const bought = items.filter((w) => w.bought);
+        const Card = (w) => (
+          <article className={"publist__item" + (w.bought ? " publist__item--bought" : "")} key={w.id}>
+            <div style={{aspectRatio: '1/1', background: 'var(--bg-2)', marginBottom: 6, position: 'relative'}}>
+              <CoverArt artist={w.artist} album={w.album} size={200} />
+              {w.bought && <span className="badge badge--bought">✓ Bought</span>}
+            </div>
+            <h4>{w.artist}</h4>
+            <div className="muted">{w.album}</div>
+            {w.note && <div className="muted small" style={{marginTop:4}}>{w.note}</div>}
+          </article>
+        );
+        return (
+          <>
+            <div className="publist">{notBought.map(Card)}</div>
+            {bought.length > 0 && (
+              <div className="publist-divider">
+                <span className="publist-divider__label mono">BOUGHT · {bought.length}</span>
+              </div>
+            )}
+            {bought.length > 0 && <div className="publist">{bought.map(Card)}</div>}
+          </>
+        );
+      })()}
+    </>
+  );
+}
+
+// ── Admin page ────────────────────────────────────────────────────────────
+function AdminPage({ tab, records, wishlist, onAdd, onWishAdd, onWishRemove, onWishMarkBought, ribbon, go, onOpen }) {
+  return (
+    <>
+      <header className="page-h">
+        <div>
+          <h1 className="page-h__title">Owner — {tab === "dashboard" ? "Dashboard" : tab === "add" ? "Add a record" : "Wishlist"}</h1>
+          <div className="page-h__sub mono">PRIVATE / DIEGO ONLY</div>
+        </div>
+      </header>
+      {ribbon}
+      <div className="admin">
+        {tab === "dashboard" && <Dashboard records={records} loans={[]} wishlist={wishlist} go={go} onOpen={onOpen} />}
+        {tab === "add" && <AddNew onAdd={onAdd} />}
+        {tab === "wishlist" && <WishlistView items={wishlist} onAdd={onWishAdd} onRemove={onWishRemove} onMarkBought={onWishMarkBought} />}
+      </div>
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

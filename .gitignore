@@ -1,0 +1,15 @@
+.DS_Store
+
+# Superseded by supabase-client.js -- the app no longer reads these.
+data.js
+covers-map.json
+covers/
+enrich-covers.mjs
+enrich-covers.py
+
+# Not wired into the live app (unused component / early static mockup).
+ios-frame.jsx
+Mobile Preview.html
+
+# Raw source data snapshots, not app code.
+uploads/
