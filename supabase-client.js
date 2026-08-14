@@ -40,6 +40,7 @@ function mapRecordRow(row) {
     listening_notes: row.listening_notes,
     featuredVG: !!row.played_at_vg_legacy, // read-only now -- see FEATURE_IDEAS.md "Sessions tab"
     acquired: row.created_at ? row.created_at.slice(0, 7) : null,
+    owner: row.owner || "Diego", // whose physical copy this is -- see sessions_ownership_migration.sql
     tracks: (row.tracks || []).slice().sort((a, b) => String(a.position).localeCompare(String(b.position), undefined, { numeric: true })),
   };
 }
@@ -52,6 +53,10 @@ function mapRecordRow(row) {
 
 // ---------- reads ----------
 
+// Returns records from EVERY owner, not just Diego's -- Sessions needs to
+// look up and reuse friends' records too (see sessions_ownership_migration.sql
+// for why `owner` exists). The Collection/Wishlist pages filter this down
+// to owner === "Diego" themselves; Sessions uses the full list as-is.
 async function fetchCollection() {
   const { data, error } = await sb
     .from("records")
@@ -89,9 +94,33 @@ async function fetchApprovedNotes(recordId) {
   return data.map((n) => ({ who: n.author_name, when: n.created_at.slice(0, 10), text: n.body }));
 }
 
+// Sessions + plays. A session knows nothing about records directly --
+// `plays` is the join table (see schema.sql). We fetch the session rows
+// with their play rows nested, then flatten to a plain list per session.
+// "Who brought it" is NOT stored on the play -- it's just the record's
+// `owner` (see sessions_ownership_migration.sql) -- so the UI looks each
+// play's record up against the already-loaded `records` array (from
+// fetchCollection, which includes every owner) rather than us re-shipping
+// full record data here too.
+async function fetchSessions() {
+  const { data, error } = await sb
+    .from("sessions")
+    .select("*, plays(id, record_id, notes)")
+    .order("session_date", { ascending: false });
+  if (error) throw error;
+  return data.map((s) => ({
+    id: s.id,
+    date: s.session_date,
+    location: s.location || "",
+    attendees: s.attendees || [],
+    notes: s.notes || "",
+    plays: (s.plays || []).map((p) => ({ playId: p.id, recordId: p.record_id, notes: p.notes || "" })),
+  }));
+}
+
 // ---------- writes (all require an authenticated session; RLS enforces this) ----------
 
-async function insertRecord({ artist, album, genre, format, label, notes }) {
+async function insertRecord({ artist, album, genre, format, label, notes, owner }) {
   const { data, error } = await sb
     .from("records")
     .insert({
@@ -101,6 +130,7 @@ async function insertRecord({ artist, album, genre, format, label, notes }) {
       format: format || "LP",
       label,
       my_notes: notes || null,
+      owner: owner || "Diego",
     })
     .select("*, tracks(*)")
     .single();
@@ -150,6 +180,39 @@ async function insertNote(recordId, authorName, body) {
   if (error) throw error;
 }
 
+async function insertSession({ date, location, attendees, notes }) {
+  const { data, error } = await sb
+    .from("sessions")
+    .insert({ session_date: date, location: location || null, attendees: attendees || [], notes: notes || null })
+    .select()
+    .single();
+  if (error) throw error;
+  return { id: data.id, date: data.session_date, location: data.location || "", attendees: data.attendees || [], notes: data.notes || "", plays: [] };
+}
+
+async function updateSession(id, { date, location, attendees, notes }) {
+  const { error } = await sb
+    .from("sessions")
+    .update({ session_date: date, location: location || null, attendees: attendees || [], notes: notes || null })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+async function deleteSession(id) {
+  const { error } = await sb.from("sessions").delete().eq("id", id);
+  if (error) throw error;
+}
+
+async function addPlay(sessionId, recordId, notes) {
+  const { error } = await sb.from("plays").insert({ session_id: sessionId, record_id: recordId, notes: notes || null });
+  if (error) throw error;
+}
+
+async function removePlay(playId) {
+  const { error } = await sb.from("plays").delete().eq("id", playId);
+  if (error) throw error;
+}
+
 // ---------- auth ----------
 
 async function signIn(email, password) {
@@ -175,11 +238,17 @@ window.VC = {
   fetchCollection,
   fetchWishlist,
   fetchApprovedNotes,
+  fetchSessions,
   insertRecord,
   insertWishlistItem,
   removeWishlistItem,
   markWishlistBought,
   insertNote,
+  insertSession,
+  updateSession,
+  deleteSession,
+  addPlay,
+  removePlay,
   signIn,
   signOut,
   getSession,

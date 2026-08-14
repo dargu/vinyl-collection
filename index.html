@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="styles.css?v=27" />
+<link rel="stylesheet" href="styles.css?v=29" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
@@ -15,13 +15,14 @@
 <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 
-<script src="supabase-client.js?v=1"></script>
+<script src="supabase-client.js?v=3"></script>
 <script type="text/babel" src="tweaks-panel.jsx?v=1"></script>
 <script type="text/babel" src="cover-art.jsx?v=1"></script>
 <script type="text/babel" src="shelf.jsx?v=1"></script>
 <script type="text/babel" src="detail.jsx?v=1"></script>
 <script type="text/babel" src="admin.jsx?v=1"></script>
 <script type="text/babel" src="dashboard.jsx?v=1"></script>
+<script type="text/babel" src="sessions.jsx?v=2"></script>
 </head>
 <body>
 <div id="root"></div>
@@ -45,6 +46,7 @@ function App() {
   const [route, setRoute] = useState(readHash());
   const [records, setRecords] = useState([]);
   const [wishlist, setWishlist] = useState([]);
+  const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [active, setActive] = useState(null);
@@ -69,12 +71,14 @@ function App() {
     setLoading(true);
     setLoadError("");
     try {
-      const [recs, wish] = await Promise.all([
+      const [recs, wish, sess] = await Promise.all([
         window.VC.fetchCollection(),
         window.VC.fetchWishlist(),
+        window.VC.fetchSessions(),
       ]);
       setRecords(recs);
       setWishlist(wish);
+      setSessions(sess);
     } catch (e) {
       console.error(e);
       setLoadError("Couldn't load the collection. Check your connection and reload the page.");
@@ -83,6 +87,13 @@ function App() {
     }
   }
   useEffect(() => { reload(); }, []);
+
+  // Lighter than a full reload() -- used after session/play edits, which
+  // don't touch records or wishlist.
+  async function reloadSessions() {
+    const sess = await window.VC.fetchSessions();
+    setSessions(sess);
+  }
 
   // Real auth session, not a sessionStorage flag. Supabase keeps the
   // session in the browser itself, so this survives refreshes on its
@@ -99,6 +110,11 @@ function App() {
   }, []);
 
   function go(path) { location.hash = path; }
+
+  // Diego's own shelf -- what the Collection/Wishlist/Dashboard pages show.
+  // `records` itself holds every owner (see supabase-client.js fetchCollection)
+  // because Sessions needs to look up and reuse friends' records too.
+  const myRecords = useMemo(() => records.filter((r) => (r.owner || "Diego") === "Diego"), [records]);
 
   async function addRecord(fields) {
     const rec = await window.VC.insertRecord(fields);
@@ -119,6 +135,49 @@ function App() {
     go("/");
   }
 
+  // Sessions: "who brought it" is just the record's owner (see
+  // ../app/sessions_ownership_migration.sql), so adding a play means
+  // reusing a matching record if one already exists, or creating a
+  // minimal one on the fly if it doesn't -- same dedupe logic either way.
+  function findExistingRecord(artist, title, owner) {
+    const a = (artist || "").trim().toLowerCase();
+    const t = (title || "").trim().toLowerCase();
+    const o = (owner || "Diego").trim().toLowerCase();
+    return records.find((r) => r.artist.trim().toLowerCase() === a && r.album.trim().toLowerCase() === t && (r.owner || "Diego").trim().toLowerCase() === o);
+  }
+  async function ensureRecord({ artist, title, owner }) {
+    const existing = findExistingRecord(artist, title, owner);
+    if (existing) return existing;
+    const rec = await window.VC.insertRecord({ artist, album: title, owner });
+    setRecords((rs) => [rec, ...rs]);
+    return rec;
+  }
+  async function addSessionFull({ date, location, attendees, notes, albums }) {
+    const session = await window.VC.insertSession({ date, location, attendees, notes });
+    for (const a of albums) {
+      const rec = await ensureRecord({ artist: a.artist, title: a.title, owner: a.owner });
+      await window.VC.addPlay(session.id, rec.id, a.notes);
+    }
+    await reloadSessions();
+  }
+  async function addPlaySingle(sessionId, { artist, title, owner, notes }) {
+    const rec = await ensureRecord({ artist, title, owner });
+    await window.VC.addPlay(sessionId, rec.id, notes);
+    await reloadSessions();
+  }
+  async function updateSessionHandler(id, fields) {
+    await window.VC.updateSession(id, fields);
+    await reloadSessions();
+  }
+  async function removePlayHandler(playId) {
+    await window.VC.removePlay(playId);
+    await reloadSessions();
+  }
+  async function deleteSessionHandler(id) {
+    await window.VC.deleteSession(id);
+    await reloadSessions();
+  }
+
   const isAdminRoute = route.startsWith("/admin");
   const adminTab = isAdminRoute ? (route.split("/")[2] || "dashboard") : null;
 
@@ -132,8 +191,9 @@ function App() {
   return (
     <div className="app" data-theme={t.theme} data-density={t.density}>
       <main className="main">
-        {route === "/" && <BrowsePage records={records} onOpen={setActive} density={t.density} isOwner={isOwner} go={go} ribbon={<NavRibbon route={route} adminTab={adminTab} go={go} records={records} wishlist={wishlist} isOwner={isOwner} />} />}
-        {route === "/wishlist" && <PublicWishlistPage items={wishlist} isOwner={isOwner} go={go} ribbon={<NavRibbon route={route} adminTab={adminTab} go={go} records={records} wishlist={wishlist} isOwner={isOwner} />} />}
+        {route === "/" && <BrowsePage records={myRecords} onOpen={setActive} density={t.density} isOwner={isOwner} go={go} ribbon={<NavRibbon route={route} adminTab={adminTab} go={go} records={myRecords} wishlist={wishlist} sessions={sessions} isOwner={isOwner} />} />}
+        {route === "/wishlist" && <PublicWishlistPage items={wishlist} isOwner={isOwner} go={go} ribbon={<NavRibbon route={route} adminTab={adminTab} go={go} records={myRecords} wishlist={wishlist} sessions={sessions} isOwner={isOwner} />} />}
+        {route === "/sessions" && <SessionsPage sessions={sessions} records={records} onOpen={setActive} isOwner={isOwner} go={go} ribbon={<NavRibbon route={route} adminTab={adminTab} go={go} records={myRecords} wishlist={wishlist} sessions={sessions} isOwner={isOwner} />} />}
 
         {isAdminRoute && !isOwner && (
           <AdminGate onUnlock={() => setIsOwner(true)} />
@@ -141,17 +201,19 @@ function App() {
         {isAdminRoute && isOwner && (
           <AdminPage
             tab={adminTab}
-            records={records} wishlist={wishlist}
+            records={myRecords} allRecords={records} wishlist={wishlist} sessions={sessions}
             onAdd={addRecord}
             onWishAdd={addWish} onWishRemove={removeWish} onWishMarkBought={markWishBought}
+            onSessionAdd={addSessionFull} onSessionUpdate={updateSessionHandler} onSessionDelete={deleteSessionHandler}
+            onPlayAdd={addPlaySingle} onPlayRemove={removePlayHandler}
             isOwner={isOwner} go={go}
             onOpen={setActive}
-            ribbon={<NavRibbon route={route} adminTab={adminTab} go={go} records={records} wishlist={wishlist} isOwner={isOwner} />}
+            ribbon={<NavRibbon route={route} adminTab={adminTab} go={go} records={myRecords} wishlist={wishlist} sessions={sessions} isOwner={isOwner} />}
           />
         )}
 
         <footer className="sitefoot">
-          <span className="mono">{records.length} RECORDS · LIVE</span>
+          <span className="mono">{myRecords.length} RECORDS · LIVE</span>
           <span className="dot">·</span>
           <span className="mono">VINILES &amp; GALLETAS / DARGUELLES</span>
         </footer>
@@ -182,7 +244,7 @@ function App() {
 // it wasn't backed by real storage (see FEATURE_IDEAS.md "Loans
 // feature"). Better to leave it out than ship a tab that resets on
 // every refresh and pretends otherwise.
-function NavRibbon({ route, adminTab, go, records, wishlist, isOwner }) {
+function NavRibbon({ route, adminTab, go, records, wishlist, sessions, isOwner }) {
   const Tab = ({ to, label, count, active }) => (
     <button className={"ribbon__tab" + (active ? " on" : "")} onClick={() => go(to)}>
       <span>{label}</span>{count != null && <span className="ribbon__count mono">{count}</span>}
@@ -192,12 +254,14 @@ function NavRibbon({ route, adminTab, go, records, wishlist, isOwner }) {
     <nav className="ribbon">
       <Tab to="/" label="All records" count={records.length} active={route === "/"} />
       <Tab to="/wishlist" label="Wishlist" count={wishlist.length} active={route === "/wishlist"} />
+      <Tab to="/sessions" label="Sessions" count={sessions.length} active={route === "/sessions"} />
       {isOwner && <>
         <span className="ribbon__sep" />
         <span className="ribbon__group">OWNER</span>
         <Tab to="/admin" label="Dashboard" active={adminTab === "dashboard"} />
         <Tab to="/admin/add" label="Add record" active={adminTab === "add"} />
         <Tab to="/admin/wishlist" label="Manage wishlist" active={adminTab === "wishlist"} />
+        <Tab to="/admin/sessions" label="Sessions" active={adminTab === "sessions"} />
       </>}
     </nav>
   );
@@ -265,12 +329,14 @@ function PublicWishlistPage({ items, ribbon, isOwner, go }) {
 }
 
 // ── Admin page ────────────────────────────────────────────────────────────
-function AdminPage({ tab, records, wishlist, onAdd, onWishAdd, onWishRemove, onWishMarkBought, ribbon, go, onOpen }) {
+const ADMIN_TAB_TITLES = { dashboard: "Dashboard", add: "Add a record", wishlist: "Wishlist", sessions: "Sessions" };
+
+function AdminPage({ tab, records, allRecords, wishlist, sessions, onAdd, onWishAdd, onWishRemove, onWishMarkBought, onSessionAdd, onSessionUpdate, onSessionDelete, onPlayAdd, onPlayRemove, ribbon, go, onOpen }) {
   return (
     <>
       <header className="page-h">
         <div>
-          <h1 className="page-h__title">Owner — {tab === "dashboard" ? "Dashboard" : tab === "add" ? "Add a record" : "Wishlist"}</h1>
+          <h1 className="page-h__title">Owner — {ADMIN_TAB_TITLES[tab] || "Wishlist"}</h1>
           <div className="page-h__sub mono">PRIVATE / DIEGO ONLY</div>
         </div>
       </header>
@@ -279,6 +345,17 @@ function AdminPage({ tab, records, wishlist, onAdd, onWishAdd, onWishRemove, onW
         {tab === "dashboard" && <Dashboard records={records} loans={[]} wishlist={wishlist} go={go} onOpen={onOpen} />}
         {tab === "add" && <AddNew onAdd={onAdd} />}
         {tab === "wishlist" && <WishlistView items={wishlist} onAdd={onWishAdd} onRemove={onWishRemove} onMarkBought={onWishMarkBought} />}
+        {tab === "sessions" && (
+          <SessionsAdmin
+            sessions={sessions}
+            records={allRecords}
+            onAddSession={onSessionAdd}
+            onUpdateSession={onSessionUpdate}
+            onAddPlay={onPlayAdd}
+            onRemovePlay={onPlayRemove}
+            onDeleteSession={onSessionDelete}
+          />
+        )}
       </div>
     </>
   );
