@@ -126,7 +126,7 @@ function Dashboard({ records, loans, wishlist, go, onOpen }) {
     // `acquired` (YYYY-MM) comes from when the row was added to
     // Supabase, which is a proxy for "recently added here," not
     // necessarily when you actually bought it.
-    return [...records].sort((a, b) => (b.acquired || "").localeCompare(a.acquired || "")).slice(0, 5);
+    return [...records].sort((a, b) => (b.acquiredAt || b.acquired || "").localeCompare(a.acquiredAt || a.acquired || "")).slice(0, 5);
   }, [records]);
 
   const topGenres = useMemo_db(() => {

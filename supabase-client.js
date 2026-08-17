@@ -8,12 +8,18 @@
 const SUPABASE_URL = "https://yyydznvisypxrzuezfek.supabase.co";
 const SUPABASE_KEY = "sb_publishable_5HiOdwKoBl9SD_AxtxcziQ_nf4xc1IS";
 
-// OWNER_USER_ID: the one Supabase Auth user allowed to write. Set this
-// after you create your account (Authentication -> Users in Supabase).
-// Until it's filled in, sign-in will work but writes will be rejected
-// by the database itself (see rls_owner_fix.sql) -- fail-safe, not
-// fail-open.
-const OWNER_USER_ID = "REPLACE_WITH_YOUR_SUPABASE_USER_ID";
+// OWNER_USER_ID: the one Supabase Auth user allowed to write.
+// Found in Supabase under Authentication -> Users (the UID column).
+//
+// Not a secret -- it's just an identifier, and it's the RLS rules in
+// rls_owner_fix.sql that actually stop anyone else writing. This value
+// only decides whether the browser SHOWS the owner UI.
+//
+// While this was left as a placeholder, signing in appeared to work but
+// you'd get bounced back out a few seconds later: the login screen set
+// owner mode directly, then the next auth event re-checked against the
+// placeholder and failed. Keep it filled in.
+const OWNER_USER_ID = "8c8e5aeb-af65-4fef-ae01-84ef12592237";
 
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -39,7 +45,12 @@ function mapRecordRow(row) {
     history: row.history,
     listening_notes: row.listening_notes,
     featuredVG: !!row.played_at_vg_legacy, // read-only now -- see FEATURE_IDEAS.md "Sessions tab"
+    // `acquired` is YYYY-MM and drives the year headings in the shelf view.
+    // `acquiredAt` keeps the full timestamp, because sorting on the truncated
+    // month makes every record added in the same month tie -- which is why a
+    // newly added record wasn't appearing first under "sort by newest".
     acquired: row.created_at ? row.created_at.slice(0, 7) : null,
+    acquiredAt: row.created_at || null,
     owner: row.owner || "Diego", // whose physical copy this is -- see sessions_ownership_migration.sql
     tracks: (row.tracks || []).slice().sort((a, b) => String(a.position).localeCompare(String(b.position), undefined, { numeric: true })),
   };

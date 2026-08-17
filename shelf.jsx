@@ -104,9 +104,11 @@ function ShelfView({ records, onOpen, density, loans }) {
       ordered.forEach(([, arr]) => arr.sort((a, b) => a.artist.localeCompare(b.artist) || a.album.localeCompare(b.album)));
       return ordered;
     }
-    // acquired
+    // acquired -- sort on the FULL timestamp, not the YYYY-MM used for the
+    // year headings below. Sorting on the month alone made everything added
+    // in the same month tie, so a record added today wouldn't come first.
     const sorted = [...filtered].sort((a, b) => {
-      const ka = a.acquired || "0000-00", kb = b.acquired || "0000-00";
+      const ka = a.acquiredAt || a.acquired || "0000", kb = b.acquiredAt || b.acquired || "0000";
       return sort === "acquired-desc" ? kb.localeCompare(ka) : ka.localeCompare(kb);
     });
     const m = new Map();

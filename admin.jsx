@@ -529,7 +529,7 @@ function Stats({ records, loans, wishlist }) {
   const genres = new Set(records.map((r) => r.genre)).size;
   const artists = new Set(records.map((r) => r.artist)).size;
   const labels = new Set(records.map((r) => r.label)).size;
-  const recent = [...records].sort((a, b) => (b.acquired || "").localeCompare(a.acquired || ""))[0];
+  const recent = [...records].sort((a, b) => (b.acquiredAt || b.acquired || "").localeCompare(a.acquiredAt || a.acquired || ""))[0];
 
   return (
     <section className="stats">
