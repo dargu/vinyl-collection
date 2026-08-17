@@ -138,6 +138,95 @@ async function insertRecord({ artist, album, genre, format, label, notes, owner 
   return mapRecordRow(data);
 }
 
+// Full-metadata insert, used by the Discogs-backed "Add a record" flow.
+// insertRecord() above still exists for the quick/manual path and for
+// promoting a wishlist item -- this one additionally saves cover art,
+// years, catalog number, the Discogs id, and the tracklist.
+//
+// Tracks go in as a second insert rather than a nested one: PostgREST
+// can't insert into two tables in a single call, and we need the new
+// record's id first. If the tracks insert fails we keep the record --
+// a record with no tracklist is still useful, and re-running the
+// enrichment later can fill them in.
+async function insertRecordFull(rec) {
+  const { data, error } = await sb
+    .from("records")
+    .insert({
+      artist: rec.artist,
+      title: rec.album,
+      genres: rec.genres && rec.genres.length ? rec.genres : (rec.genre ? [rec.genre] : []),
+      format: rec.format || "LP",
+      label: rec.label || null,
+      catalog_no: rec.catalog_no || null,
+      original_year: rec.original_year || null,
+      pressing_year: rec.pressing_year || null,
+      discogs_release_id: rec.discogs_release_id || null,
+      cover_url: rec.cover_url || null,
+      my_notes: rec.notes || null,
+      owner: rec.owner || "Diego",
+    })
+    .select("*, tracks(*)")
+    .single();
+  if (error) throw error;
+
+  if (rec.tracks && rec.tracks.length) {
+    const rows = rec.tracks
+      .filter((t) => t.title)
+      .map((t) => ({
+        record_id: data.id,
+        position: t.position || null,
+        title: t.title,
+        duration: t.duration || null,
+      }));
+    if (rows.length) {
+      const { error: trackErr } = await sb.from("tracks").insert(rows);
+      if (!trackErr) data.tracks = rows;
+    }
+  }
+
+  return mapRecordRow(data);
+}
+
+// Is this release already in the collection, for this owner? Checked
+// before saving so you don't end up with two rows for the same copy.
+// Scoped by owner deliberately -- two people CAN each own the same
+// pressing (see sessions_ownership_migration.sql).
+async function findByDiscogsId(releaseId, owner) {
+  if (!releaseId) return null;
+  const { data, error } = await sb
+    .from("records")
+    .select("id, artist, title, owner")
+    .eq("discogs_release_id", releaseId)
+    .eq("owner", owner || "Diego")
+    .maybeSingle();
+  if (error) return null;
+  return data;
+}
+
+// ---------- Discogs lookup (via our own /api/discogs, never direct) ----------
+// The token is server-side only; see api/discogs.js for why.
+
+async function discogsCall(params) {
+  const res = await fetch(`/api/discogs?${new URLSearchParams(params).toString()}`);
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || "Discogs lookup failed.");
+  return body;
+}
+
+async function discogsSearch(query) {
+  const { results } = await discogsCall({ mode: "search", q: query });
+  return results || [];
+}
+
+async function discogsSearchCatno(catno) {
+  const { results } = await discogsCall({ mode: "catno", q: catno });
+  return results || [];
+}
+
+async function discogsRelease(id) {
+  return discogsCall({ mode: "release", id: String(id) });
+}
+
 async function insertWishlistItem({ artist, album, note }) {
   const { data, error } = await sb
     .from("wishlist")
@@ -240,6 +329,11 @@ window.VC = {
   fetchApprovedNotes,
   fetchSessions,
   insertRecord,
+  insertRecordFull,
+  findByDiscogsId,
+  discogsSearch,
+  discogsSearchCatno,
+  discogsRelease,
   insertWishlistItem,
   removeWishlistItem,
   markWishlistBought,

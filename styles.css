@@ -547,8 +547,83 @@ textarea.input { padding-top: 8px; padding-bottom: 8px; height: auto; resize: ve
 .seg button { all: unset; cursor: default; padding: 5px 12px; font-size: 12px; color: var(--muted); }
 .seg button.on { background: var(--ink); color: var(--bg); }
 
-.discogs { padding: 16px 20px 0; display: flex; flex-direction: column; gap: 8px; }
-.discogs__row { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+/* ── Add a record (search → pick pressing → review) ──────────────────── */
+.addrec { padding: 18px 20px 20px; }
+.addrec__lede { margin: 0 0 12px; font-size: 13px; color: var(--muted); }
+.addrec__searchrow { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.addrec__err { margin-top: 8px; font-size: 12.5px; color: #C0392B; }
+.addrec__warn {
+  margin-bottom: 14px; padding: 10px 12px; font-size: 12.5px;
+  border: 1px solid var(--hair); border-left: 2px solid var(--ink);
+  background: var(--bg-2); border-radius: 0;
+}
+.addrec__footrow {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--hair-2);
+}
+.addrec__pickhd { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
+.addrec__pickhd > div:first-child { flex: 1; }
+.addrec__picktitle { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+.addrec__pickhd .addrec__lede { margin-bottom: 0; }
+
+.pressgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; }
+.presscard {
+  all: unset; cursor: default; display: flex; gap: 10px; align-items: flex-start;
+  padding: 10px; border: 1px solid var(--hair); border-radius: 6px; background: var(--bg);
+  transition: border-color 120ms ease;
+}
+.presscard:hover { border-color: var(--ink); }
+.presscard[disabled] { opacity: 0.5; }
+.presscard__art { width: 56px; height: 56px; border-radius: 3px; object-fit: cover; flex-shrink: 0; background: var(--bg-2); }
+.presscard__art--none { background: var(--hair-2); }
+.presscard__body { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.presscard__label { font-size: 12.5px; font-weight: 500; line-height: 1.3; }
+.presscard__cat { font-size: 11px; color: var(--muted); }
+.presscard__meta { font-size: 11.5px; color: var(--muted-2); }
+
+.addrec__top { display: flex; gap: 14px; margin-bottom: 12px; }
+.addrec__cover { width: 104px; height: 104px; border-radius: 4px; object-fit: cover; flex-shrink: 0; background: var(--bg-2); }
+.addrec__cover--none {
+  display: flex; align-items: center; justify-content: center;
+  border: 1px dashed var(--field-bd); font-size: 11px; color: var(--muted-2);
+}
+.addrec__topfields { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.addrec__topfields label, .addrec__grid label, .addrec__notes {
+  display: flex; flex-direction: column; gap: 6px; font-size: 11.5px; color: var(--muted);
+}
+.addrec__topfields label > span, .addrec__grid label > span, .addrec__notes > span {
+  font-family: var(--font-mono); letter-spacing: 0.04em; text-transform: uppercase; font-size: 10.5px;
+}
+.addrec__grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px 16px; margin-bottom: 12px;
+}
+.addrec__notes { margin-bottom: 4px; }
+.addrec__notes textarea { resize: vertical; font-family: inherit; }
+
+.tracklist-preview { border: 1px solid var(--hair); border-radius: 6px; padding: 12px 14px; margin-bottom: 14px; }
+.tracklist-preview__hd { font-size: 11px; font-family: var(--font-mono); letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-2); margin-bottom: 10px; }
+.tracklist-preview__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 20px; }
+.tracklist-preview__row { display: flex; gap: 8px; align-items: baseline; font-size: 12.5px; padding: 2px 0; min-width: 0; }
+.tracklist-preview__pos { font-size: 10.5px; color: var(--muted-2); width: 24px; flex-shrink: 0; }
+.tracklist-preview__title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tracklist-preview__dur { font-size: 10.5px; color: var(--muted-2); }
+
+.addrec__done {
+  display: flex; gap: 14px; align-items: center; padding: 14px;
+  border: 1px solid var(--hair); border-radius: 6px; margin-bottom: 14px;
+}
+.addrec__donecover { width: 64px; height: 64px; border-radius: 3px; object-fit: cover; flex-shrink: 0; background: var(--bg-2); }
+.addrec__donecover--none { background: var(--hair-2); }
+.addrec__doneflag { font-size: 11px; font-family: var(--font-mono); letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink); margin-bottom: 3px; }
+.addrec__donealbum { font-size: 14.5px; font-weight: 500; }
+
+@media (max-width: 720px) {
+  .pressgrid { grid-template-columns: 1fr; }
+  .tracklist-preview__grid { grid-template-columns: 1fr; }
+  .addrec__top { flex-direction: column; }
+  .addrec__cover { width: 84px; height: 84px; }
+}
 
 .form { padding: 16px 20px 20px; display: flex; flex-direction: column; gap: 16px; }
 .form__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; }
