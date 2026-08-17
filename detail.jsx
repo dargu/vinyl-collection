@@ -2,6 +2,16 @@
 
 const { useState: useState_d, useEffect: useEffect_d } = React;
 
+// "Date added" = when the row was created in the database, which for the
+// original collection is the day of the bulk import rather than the day
+// you actually bought the record. Accurate from here on.
+function fmtAdded(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d)) return "";
+  return d.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" });
+}
+
 // The prototype's "MiniReview" called window.claude.complete() to
 // generate AI liner notes on the fly. That only works inside the
 // claude.ai artifact sandbox -- on a real deployed site there's no
@@ -175,6 +185,7 @@ function Detail({ rec, onClose, isOwner }) {
               {rec.original_year && <div><dt>Released</dt><dd>{rec.original_year}</dd></div>}
               {rec.pressing_year && rec.pressing_year !== rec.original_year && <div><dt>This pressing</dt><dd>{rec.pressing_year}</dd></div>}
               {rec.catalog_no && <div><dt>Catalog</dt><dd className="mono">{rec.catalog_no}</dd></div>}
+              {rec.acquiredAt && <div><dt>Date added</dt><dd className="mono">{fmtAdded(rec.acquiredAt)}</dd></div>}
               <div>
                 <dt>Played @ V&amp;G</dt>
                 <dd>

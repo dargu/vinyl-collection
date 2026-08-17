@@ -67,19 +67,43 @@ function pickFormat(formats) {
   return name || "LP";
 }
 
-// Flatten Discogs' artist array. join is the separator Discogs itself
-// supplies ("&", "feat.") -- respecting it keeps names reading naturally.
-function artistName(artists) {
-  if (!Array.isArray(artists) || !artists.length) return "";
-  return artists
-    .map((a, i) => {
-      const nm = (a.name || "").replace(/\s\(\d+\)$/, ""); // strip Discogs' "(2)" disambiguators
-      const join = a.join && i < artists.length - 1 ? ` ${a.join} ` : "";
-      return nm + join;
-    })
-    .join("")
-    .replace(/\s+,/g, ",")
+// Discogs stores artist names in a few shapes, and naively stitching the
+// `artists` array together produces things like
+//   "Kiyoshi Yamaya = Kiyoshi Yamaya, Toshiko Yonekawa = Toshiko Yonekawa"
+// The "X = Y" form is Discogs' notation for a name and its variation
+// (common on Japanese and other non-Latin releases, where the canonical
+// name is in the original script and Y is the romanisation).
+//
+// `artists_sort` is Discogs' own single-string display name and is already
+// clean, so prefer it and only fall back to assembling the array.
+function cleanArtistPart(name) {
+  return (name || "")
+    .replace(/\s\(\d+\)$/, "")   // Discogs' "(2)" disambiguators
+    .split(" = ")[0]             // keep one side of "name = variation"
     .trim();
+}
+
+function artistName(artists, artistsSort) {
+  if (artistsSort && artistsSort.trim()) return cleanArtistPart(artistsSort);
+  if (!Array.isArray(artists) || !artists.length) return "";
+  const parts = artists.map((a, i) => {
+    const nm = cleanArtistPart(a.name);
+    // `join` is the separator Discogs supplies ("&", "feat.") -- respecting
+    // it keeps collaborations reading naturally.
+    const join = a.join && i < artists.length - 1 ? ` ${a.join} ` : "";
+    return nm + join;
+  });
+  // Drop repeats: some releases list the same artist several times with
+  // different name variations, which would otherwise read as a list of
+  // one person three times.
+  const seen = new Set();
+  const deduped = parts.filter((p) => {
+    const k = p.replace(/[\s,&]+$/, "").toLowerCase();
+    if (!k || seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+  return deduped.join("").replace(/\s+,/g, ",").replace(/[\s,&]+$/, "").trim();
 }
 
 async function fullRelease(id, token) {
@@ -101,7 +125,7 @@ async function fullRelease(id, token) {
 
   return {
     discogs_release_id: rel.id,
-    artist: artistName(rel.artists),
+    artist: artistName(rel.artists, rel.artists_sort),
     title: rel.title || "",
     label: label.name || "",
     catalog_no: label.catno || "",
