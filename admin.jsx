@@ -292,29 +292,35 @@ function ReviewStep({ draft, setDraft, onSave, onBack, saving, err, dupe }) {
   );
 }
 
-function AddNew({ onAdd }) {
-  const [step, setStep] = useState_a("search"); // search | pick | review | done
+// The search -> pick -> review -> save flow on its own, with no chrome
+// around it. Sessions reuses this when a friend brings an album that isn't
+// in the collection yet, so those records arrive with cover art and a
+// tracklist rather than as bare artist/title stubs.
+//
+// `onSaved` fires with the created record. `initialOwner` lets Sessions
+// pre-set who brought it.
+function AddRecordFlow({ onAdd, onSaved, initialOwner }) {
+  const [step, setStep] = useState_a("search"); // search | pick | review
   const [results, setResults] = useState_a([]);
   const [term, setTerm] = useState_a("");
-  const [draft, setDraft] = useState_a(blankDraft());
+  const [draft, setDraft] = useState_a(() => ({ ...blankDraft(), owner: initialOwner || "Diego" }));
   const [busy, setBusy] = useState_a(false);
   const [saving, setSaving] = useState_a(false);
   const [err, setErr] = useState_a("");
   const [dupe, setDupe] = useState_a(null);
-  const [saved, setSaved] = useState_a(null);
+
+  function freshDraft() { return { ...blankDraft(), owner: initialOwner || "Diego" }; }
 
   function reset() {
-    setStep("search"); setResults([]); setTerm(""); setDraft(blankDraft());
-    setErr(""); setDupe(null); setSaved(null);
+    setStep("search"); setResults([]); setTerm(""); setDraft(freshDraft());
+    setErr(""); setDupe(null);
   }
 
   async function toReview(rel) {
-    const d = draftFromRelease(rel);
+    const d = { ...draftFromRelease(rel), owner: initialOwner || "Diego" };
     setDraft(d);
     setErr("");
     setStep("review");
-    // Warn (but never block) if this exact release is already filed under
-    // the same owner -- a genuine second copy is allowed.
     try {
       const existing = await window.VC.findByDiscogsId(d.discogs_release_id, d.owner);
       setDupe(existing || null);
@@ -336,8 +342,8 @@ function AddNew({ onAdd }) {
         original_year: draft.original_year ? parseInt(draft.original_year, 10) || null : null,
         pressing_year: draft.pressing_year ? parseInt(draft.pressing_year, 10) || null : null,
       });
-      setSaved(rec || { artist: draft.artist, album: draft.album, cover_url: draft.cover_url });
-      setStep("done");
+      onSaved(rec || { artist: draft.artist, album: draft.album, cover_url: draft.cover_url, owner: draft.owner });
+      reset();
     } catch (e) {
       setErr("Couldn't save that — check your connection and try again.");
     } finally {
@@ -345,56 +351,70 @@ function AddNew({ onAdd }) {
     }
   }
 
+  const goManual = () => { setDraft(freshDraft()); setDupe(null); setErr(""); setStep("review"); };
+
+  return (
+    <div className="addrec">
+      {step === "search" && (
+        <SearchStep
+          busy={busy} setBusy={setBusy}
+          onResults={(r, t) => { setResults(r); setTerm(t); setStep("pick"); }}
+          onRelease={toReview}
+          onManual={goManual}
+        />
+      )}
+      {step === "pick" && (
+        <PickStep
+          results={results} term={term} busy={busy} setBusy={setBusy}
+          onPick={toReview}
+          onBack={reset}
+          onManual={goManual}
+        />
+      )}
+      {step === "review" && (
+        <ReviewStep
+          draft={draft} setDraft={setDraft}
+          onSave={save}
+          onBack={() => (results.length ? setStep("pick") : reset())}
+          saving={saving} err={err} dupe={dupe}
+        />
+      )}
+    </div>
+  );
+}
+
+function AddNew({ onAdd }) {
+  const [saved, setSaved] = useState_a(null);
+  const [nonce, setNonce] = useState_a(0); // remounts the flow for "Add another"
+
+  if (saved) {
+    return (
+      <section className="admincard">
+        <header className="admincard__hd"><h3>Add a record</h3></header>
+        <div className="addrec">
+          <div className="addrec__done">
+            {saved.cover_url
+              ? <img className="addrec__donecover" src={saved.cover_url} alt="" />
+              : <div className="addrec__donecover addrec__donecover--none" />}
+            <div>
+              <div className="addrec__doneflag">✓ Added to the collection</div>
+              <div className="addrec__donealbum">{saved.album}</div>
+              <div className="muted small">{saved.artist}</div>
+            </div>
+          </div>
+          <div className="form__actions">
+            <div className="grow" />
+            <button className="btn btn--solid" onClick={() => { setSaved(null); setNonce((n) => n + 1); }}>Add another</button>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="admincard">
       <header className="admincard__hd"><h3>Add a record</h3></header>
-      <div className="addrec">
-        {step === "search" && (
-          <SearchStep
-            busy={busy} setBusy={setBusy}
-            onResults={(r, t) => { setResults(r); setTerm(t); setStep("pick"); }}
-            onRelease={toReview}
-            onManual={() => { setDraft(blankDraft()); setDupe(null); setErr(""); setStep("review"); }}
-          />
-        )}
-
-        {step === "pick" && (
-          <PickStep
-            results={results} term={term} busy={busy} setBusy={setBusy}
-            onPick={toReview}
-            onBack={reset}
-            onManual={() => { setDraft(blankDraft()); setDupe(null); setErr(""); setStep("review"); }}
-          />
-        )}
-
-        {step === "review" && (
-          <ReviewStep
-            draft={draft} setDraft={setDraft}
-            onSave={save}
-            onBack={() => (results.length ? setStep("pick") : reset())}
-            saving={saving} err={err} dupe={dupe}
-          />
-        )}
-
-        {step === "done" && saved && (
-          <div>
-            <div className="addrec__done">
-              {saved.cover_url
-                ? <img className="addrec__donecover" src={saved.cover_url} alt="" />
-                : <div className="addrec__donecover addrec__donecover--none" />}
-              <div>
-                <div className="addrec__doneflag">✓ Added to the collection</div>
-                <div className="addrec__donealbum">{saved.album}</div>
-                <div className="muted small">{saved.artist}</div>
-              </div>
-            </div>
-            <div className="form__actions">
-              <div className="grow" />
-              <button className="btn btn--solid" onClick={reset}>Add another</button>
-            </div>
-          </div>
-        )}
-      </div>
+      <AddRecordFlow key={nonce} onAdd={onAdd} onSaved={setSaved} />
     </section>
   );
 }
@@ -608,6 +628,7 @@ function AdminGate({ onUnlock }) {
 // Shared with detail.jsx's edit form so there is ONE definition of each
 // list. detail.jsx reads these off window at render time, which is after
 // every script has loaded.
+window.AddRecordFlow = AddRecordFlow;
 window.HOUSE_GENRES = HOUSE_GENRES;
 window.OWNERS = OWNERS;
 window.FORMATS = FORMATS;

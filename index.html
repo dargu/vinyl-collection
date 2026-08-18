@@ -20,9 +20,9 @@
 <script type="text/babel" src="cover-art.jsx?v=1"></script>
 <script type="text/babel" src="shelf.jsx?v=2"></script>
 <script type="text/babel" src="detail.jsx?v=3"></script>
-<script type="text/babel" src="admin.jsx?v=4"></script>
+<script type="text/babel" src="admin.jsx?v=5"></script>
 <script type="text/babel" src="dashboard.jsx?v=2"></script>
-<script type="text/babel" src="sessions.jsx?v=3"></script>
+<script type="text/babel" src="sessions.jsx?v=4"></script>
 </head>
 <body>
 <div id="root"></div>
@@ -234,6 +234,7 @@ function App() {
             onAdd={addRecord}
             onWishAdd={addWish} onWishRemove={removeWish} onWishMarkBought={markWishBought}
             onSessionAdd={addSessionFull} onSessionUpdate={updateSessionHandler} onSessionDelete={deleteSessionHandler}
+            onAddRecord={addRecord}
             onPlayAdd={addPlaySingle} onPlayRemove={removePlayHandler}
             isOwner={isOwner} go={go}
             onOpen={setActive}

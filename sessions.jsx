@@ -78,9 +78,9 @@ function AttendeePicker({ selected, onToggle, otherValue, onOtherChange }) {
 // Choosing from the list makes that impossible -- a typo can't invent a
 // record if typing isn't how you choose one.
 //
-// Anything genuinely new still gets in via "Not in the collection yet",
-// which falls back to typing it -- but that's now a deliberate act rather
-// than the accidental default.
+// Anything genuinely new goes through "Not in the collection yet — add it",
+// which opens the same Discogs flow the Collection page uses, so a friend's
+// record arrives with cover art and a tracklist rather than as a stub.
 function RecordPicker({ records, row, onPick }) {
   const [q, setQ] = useState_s("");
   const [open, setOpen] = useState_s(false);
@@ -143,78 +143,76 @@ function RecordPicker({ records, row, onPick }) {
   );
 }
 
-function AlbumRow({ row, onChange, onRemove, removable, records }) {
+function AlbumRow({ row, onChange, onRemove, removable, records, onAddRecord }) {
   function set(k, v) { onChange({ ...row, [k]: v }); }
-  const manual = !!row.manual;
+  const [adding, setAdding] = useState_s(false);
 
   return (
-    <div className={"albumrow" + (manual ? "" : " albumrow--picking")}>
-      {manual ? (
-        <>
-          <input className="input" placeholder="Artist" value={row.artist} onChange={(e) => set("artist", e.target.value)} />
-          <input className="input" placeholder="Album title" value={row.title} onChange={(e) => set("title", e.target.value)} />
-          <div>
-            <PersonSelect
-              value={row.owner}
-              onChange={(v) => set("owner", v)}
-              otherValue={row.ownerOther || ""}
-              onOtherChange={(v) => set("ownerOther", v)}
-              placeholder="Brought by…"
-            />
-          </div>
-        </>
-      ) : (
-        <div className="albumrow__pick">
-          <RecordPicker
-            records={records || []}
-            row={row}
-            onPick={(fields) => onChange({ ...row, ...fields })}
-          />
-        </div>
-      )}
+    <div className="albumrow albumrow--picking">
+      <div className="albumrow__pick">
+        <RecordPicker
+          records={records || []}
+          row={row}
+          onPick={(fields) => onChange({ ...row, ...fields })}
+        />
+      </div>
 
       <input className="input" placeholder="Notes (optional)" value={row.notes} onChange={(e) => set("notes", e.target.value)} />
       {removable && <button type="button" className="albumrow__x" onClick={onRemove} title="Remove this album">×</button>}
 
-      <div className="albumrow__toggle">
-        {manual ? (
-          <button type="button" className="btn btn--xs btn--ghost"
-            onClick={() => onChange({ ...row, manual: false, artist: "", title: "", owner: "", ownerOther: "" })}>
-            ← Pick from the collection instead
+      {!row.recordId && onAddRecord && (
+        <div className="albumrow__toggle">
+          <button type="button" className="btn btn--xs btn--ghost" onClick={() => setAdding(true)}>
+            Not in the collection yet — add it
           </button>
-        ) : !row.recordId && (
-          <button type="button" className="btn btn--xs btn--ghost"
-            onClick={() => onChange({ ...row, manual: true, recordId: null })}>
-            Not in the collection yet — type it in
-          </button>
-        )}
-      </div>
+        </div>
+      )}
+
+      {/* Same Discogs flow as the Collection's "Add a record", so an album a
+          friend brought lands with cover art and a tracklist rather than as
+          a bare artist/title stub. Once saved it's selected into this row. */}
+      {adding && (
+        <Modal title="Add a record" onClose={() => setAdding(false)}>
+          <p className="addrec__lede" style={{ padding: "0 20px" }}>
+            Set <strong>Owner</strong> on the next screen to whoever brought it — that's stored on the record itself, not just on this session.
+          </p>
+          {window.AddRecordFlow ? (
+            <window.AddRecordFlow
+              onAdd={onAddRecord}
+              onSaved={(rec) => {
+                onChange({ ...row, recordId: rec.id, artist: rec.artist, title: rec.album, owner: rec.owner || "Diego" });
+                setAdding(false);
+              }}
+            />
+          ) : (
+            <p className="muted small">The add-record form didn't load. Try reloading the page.</p>
+          )}
+        </Modal>
+      )}
     </div>
   );
 }
 
 function emptyAlbumRow() {
-  return { recordId: null, artist: "", title: "", owner: "", ownerOther: "", notes: "", manual: false };
+  return { recordId: null, artist: "", title: "", owner: "", notes: "" };
 }
 
-function resolveOwner(row) { return row.owner === "Other" ? (row.ownerOther || "Other").trim() : row.owner; }
-
-// A row is usable if you picked a record, or typed both artist and title.
-function rowFilled(row) {
-  return !!row.recordId || (!!row.artist.trim() && !!row.title.trim());
-}
+// Every row now points at a real record -- either one picked from the
+// collection, or one just created through the Discogs flow. There's no
+// longer a way to half-fill a row with loose text.
+function rowFilled(row) { return !!row.recordId; }
 
 function rowToPlay(row) {
   return {
-    recordId: row.recordId || null,
-    artist: row.artist.trim(),
-    title: row.title.trim(),
-    owner: resolveOwner(row) || "Diego",
-    notes: row.notes.trim() || null,
+    recordId: row.recordId,
+    artist: row.artist,
+    title: row.title,
+    owner: row.owner || "Diego",
+    notes: (row.notes || "").trim() || null,
   };
 }
 
-function AddPlayInline({ onAdd, onCancel, records }) {
+function AddPlayInline({ onAdd, onCancel, records, onAddRecord }) {
   const [row, setRow] = useState_s(emptyAlbumRow());
   const [saving, setSaving] = useState_s(false);
   async function submit() {
@@ -228,7 +226,7 @@ function AddPlayInline({ onAdd, onCancel, records }) {
   }
   return (
     <div className="sessionrow__addform">
-      <AlbumRow row={row} onChange={setRow} records={records} />
+      <AlbumRow row={row} onChange={setRow} records={records} onAddRecord={onAddRecord} />
       <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
         <button className="btn btn--xs btn--solid" disabled={saving} onClick={submit}>{saving ? "Adding…" : "Add"}</button>
         <button className="btn btn--xs btn--ghost" onClick={onCancel}>Cancel</button>
@@ -364,7 +362,7 @@ function SessionsPage({ sessions, records, onOpen, ribbon, isOwner, go }) {
 
 // ── owner: log sessions + record what got played ───────────────────────
 
-function SessionForm({ initial, onCancel, onSave, saving, records }) {
+function SessionForm({ initial, onCancel, onSave, saving, records, onAddRecord }) {
   const [date, setDate] = useState_s(initial.date || new Date().toISOString().slice(0, 10));
   const [locSel, setLocSel] = useState_s(PEOPLE.includes(initial.locationPerson) ? initial.locationPerson : (initial.location ? "Other" : ""));
   const [locOther, setLocOther] = useState_s(initial.locationOther || (initial.location && !PEOPLE.includes(initial.locationPerson) ? initial.location : ""));
@@ -418,7 +416,7 @@ function SessionForm({ initial, onCancel, onSave, saving, records }) {
           <span className="section-h">Albums played</span>
           <div className="albumrows">
             {albums.map((row, i) => (
-              <AlbumRow key={i} row={row} onChange={(r) => setAlbum(i, r)} onRemove={() => removeAlbum(i)} removable={albums.length > 1} records={records} />
+              <AlbumRow key={i} row={row} onChange={(r) => setAlbum(i, r)} onRemove={() => removeAlbum(i)} removable={albums.length > 1} records={records} onAddRecord={onAddRecord} />
             ))}
           </div>
           <button type="button" className="btn btn--ghost btn--xs" onClick={addAlbum}>+1 album</button>
@@ -453,7 +451,7 @@ function Modal({ onClose, children, title }) {
   );
 }
 
-function SessionsAdmin({ sessions, records, onAddSession, onUpdateSession, onAddPlay, onRemovePlay, onDeleteSession }) {
+function SessionsAdmin({ sessions, records, onAddSession, onUpdateSession, onAddPlay, onRemovePlay, onDeleteSession, onAddRecord }) {
   const [adding, setAdding] = useState_s(false);
   const [editingId, setEditingId] = useState_s(null);
   const [addingPlayTo, setAddingPlayTo] = useState_s(null);
@@ -530,6 +528,7 @@ function SessionsAdmin({ sessions, records, onAddSession, onUpdateSession, onAdd
                   {addingPlayTo === s.id ? (
                     <AddPlayInline
                       records={records}
+                      onAddRecord={onAddRecord}
                       onAdd={async (fields) => { await onAddPlay(s.id, fields); setAddingPlayTo(null); }}
                       onCancel={() => setAddingPlayTo(null)}
                     />
@@ -545,7 +544,7 @@ function SessionsAdmin({ sessions, records, onAddSession, onUpdateSession, onAdd
 
       {adding && (
         <Modal title="Add session" onClose={() => setAdding(false)}>
-          <SessionForm initial={{}} onCancel={() => setAdding(false)} onSave={handleAddSession} saving={saving} records={records} />
+          <SessionForm initial={{}} onCancel={() => setAdding(false)} onSave={handleAddSession} saving={saving} records={records} onAddRecord={onAddRecord} />
         </Modal>
       )}
 
