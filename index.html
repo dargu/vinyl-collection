@@ -22,7 +22,7 @@
 <script type="text/babel" src="detail.jsx?v=3"></script>
 <script type="text/babel" src="admin.jsx?v=5"></script>
 <script type="text/babel" src="dashboard.jsx?v=2"></script>
-<script type="text/babel" src="sessions.jsx?v=4"></script>
+<script type="text/babel" src="sessions.jsx?v=5"></script>
 </head>
 <body>
 <div id="root"></div>
@@ -361,7 +361,7 @@ function PublicWishlistPage({ items, ribbon, isOwner, go }) {
 // ── Admin page ────────────────────────────────────────────────────────────
 const ADMIN_TAB_TITLES = { dashboard: "Dashboard", add: "Add a record", wishlist: "Wishlist", sessions: "Sessions" };
 
-function AdminPage({ tab, records, allRecords, wishlist, sessions, onAdd, onWishAdd, onWishRemove, onWishMarkBought, onSessionAdd, onSessionUpdate, onSessionDelete, onPlayAdd, onPlayRemove, ribbon, go, onOpen }) {
+function AdminPage({ tab, records, allRecords, wishlist, sessions, onAdd, onAddRecord, onWishAdd, onWishRemove, onWishMarkBought, onSessionAdd, onSessionUpdate, onSessionDelete, onPlayAdd, onPlayRemove, ribbon, go, onOpen }) {
   return (
     <>
       <header className="page-h">
@@ -384,6 +384,7 @@ function AdminPage({ tab, records, allRecords, wishlist, sessions, onAdd, onWish
             onAddPlay={onPlayAdd}
             onRemovePlay={onPlayRemove}
             onDeleteSession={onSessionDelete}
+            onAddRecord={onAddRecord}
           />
         )}
       </div>
