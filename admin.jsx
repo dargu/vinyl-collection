@@ -26,7 +26,10 @@ const HOUSE_GENRES = [
   "Hip Hop","Jazz","Pop","R&B/Soul","Reggae","Rock","Salsa/Tropical","Soundtrack",
 ];
 const OWNERS = ["Diego", "Charlie", "Ysita", "Roy", "Joul", "Other"];
-const FORMATS = ["LP", "2xLP", "EP", "Single", '12"', "Box Set"];
+// Must match the records_format_check constraint in the database exactly
+// (app/migrations/006_allow_multi_disc_formats.sql) -- offering a value
+// the database rejects turns into a save error at the worst moment.
+const FORMATS = ["LP", "2xLP", "3xLP", "EP", "Single", '12"', "Box Set"];
 
 // A Discogs release URL looks like /release/12345-Some-Title, and people
 // also paste bare ids. Both should skip the picker entirely.

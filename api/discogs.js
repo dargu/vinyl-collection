@@ -50,6 +50,11 @@ function slimSearchResult(r) {
   };
 }
 
+// Must only ever return a value the database's records_format_check
+// constraint accepts (see app/migrations/006_allow_multi_disc_formats.sql).
+// Anything unrecognised falls back to LP rather than failing the insert.
+const ALLOWED_FORMATS = ["LP", "2xLP", "3xLP", "EP", "Single", '12"', "Box Set"];
+
 function pickFormat(formats) {
   if (!Array.isArray(formats) || !formats.length) return "LP";
   const f = formats[0];
@@ -57,14 +62,18 @@ function pickFormat(formats) {
   const qty = parseInt(f.qty, 10);
   const descs = f.descriptions || [];
   if (name === "Vinyl") {
-    if (qty > 1) return `${qty}xLP`;
+    // 4+ discs is a box set in all but name, and that's usually how
+    // Discogs describes them anyway.
+    if (qty >= 4) return "Box Set";
+    if (qty === 3) return "3xLP";
+    if (qty === 2) return "2xLP";
     if (descs.includes('7"')) return "Single";
     if (descs.includes("EP")) return "EP";
     if (descs.includes('12"')) return '12"';
     return "LP";
   }
   if (name === "Box Set") return "Box Set";
-  return name || "LP";
+  return ALLOWED_FORMATS.includes(name) ? name : "LP";
 }
 
 // Discogs stores artist names in a few shapes, and naively stitching the
