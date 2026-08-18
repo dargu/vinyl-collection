@@ -198,6 +198,46 @@ async function insertRecordFull(rec) {
   return mapRecordRow(data);
 }
 
+// Edit an existing record. Only the fields passed in are touched, so a
+// caller that just wants to fix a genre doesn't have to resend everything
+// else and risk blanking it.
+//
+// Deliberately does NOT touch tracks, cover_url, or discogs_release_id --
+// those come from Discogs and shouldn't be hand-edited into disagreement
+// with the release they were fetched from. Re-adding the record is the
+// right move if the wrong pressing was picked.
+async function updateRecord(id, fields) {
+  const patch = {};
+  if ("artist" in fields) patch.artist = fields.artist;
+  if ("album" in fields) patch.title = fields.album;
+  if ("genre" in fields) patch.genres = fields.genre ? [fields.genre] : [];
+  if ("genres" in fields) patch.genres = fields.genres || [];
+  if ("format" in fields) patch.format = fields.format || "LP";
+  if ("label" in fields) patch.label = fields.label || null;
+  if ("catalog_no" in fields) patch.catalog_no = fields.catalog_no || null;
+  if ("original_year" in fields) patch.original_year = fields.original_year || null;
+  if ("pressing_year" in fields) patch.pressing_year = fields.pressing_year || null;
+  if ("notes" in fields) patch.my_notes = fields.notes || null;
+  if ("owner" in fields) patch.owner = fields.owner || "Diego";
+  if ("history" in fields) patch.history = fields.history || null;
+  if ("listening_notes" in fields) patch.listening_notes = fields.listening_notes || null;
+
+  const { data, error } = await sb
+    .from("records")
+    .update(patch)
+    .eq("id", id)
+    .select("*, tracks(*)")
+    .single();
+  if (error) throw error;
+  return mapRecordRow(data);
+}
+
+async function deleteRecord(id) {
+  // tracks and plays cascade from the record row (see schema.sql).
+  const { error } = await sb.from("records").delete().eq("id", id);
+  if (error) throw error;
+}
+
 // Is this release already in the collection, for this owner? Checked
 // before saving so you don't end up with two rows for the same copy.
 // Scoped by owner deliberately -- two people CAN each own the same
@@ -341,6 +381,8 @@ window.VC = {
   fetchSessions,
   insertRecord,
   insertRecordFull,
+  updateRecord,
+  deleteRecord,
   findByDiscogsId,
   discogsSearch,
   discogsSearchCatno,

@@ -442,6 +442,17 @@ textarea.input { padding-top: 8px; padding-bottom: 8px; height: auto; resize: ve
 }
 @keyframes rise { from { transform: translateY(8px); opacity: 0 } to { transform: none; opacity: 1 } }
 .detail__hd { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--hair); }
+.detail__hdactions { display: flex; align-items: center; gap: 10px; }
+
+/* Owner-only edit form, shown inline in the detail view */
+.editrec {
+  border: 1px solid var(--hair); border-radius: 6px;
+  padding: 14px 16px; margin: 14px 0 18px; background: var(--bg-2);
+}
+.editrec__hd { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.editrec .addrec__grid { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); margin-bottom: 10px; }
+.editrec .addrec__notes { margin-bottom: 10px; }
+.editrec .form__actions { padding-top: 12px; }
 .detail__crumb { font-size: 11px; color: var(--muted); letter-spacing: 0.06em; }
 .detail__crumb .dot { margin: 0 8px; color: var(--muted-2); }
 .detail__body { display: grid; grid-template-columns: 420px 1fr; gap: 0; }

@@ -18,9 +18,12 @@ const { useState: useState_a } = React;
 // library and mobile testing, and it slots into this same box later
 // (see FEATURE_IDEAS.md).
 
+// The house genre list -- Diego's own taxonomy, deliberately narrower and
+// more opinionated than Discogs'. Kept in one place and shared by the add
+// form, the edit form, and the wishlist.
 const HOUSE_GENRES = [
-  "Alternative/Indie","Blues","Classical","Electronic","Folk","Funk","Hip Hop",
-  "Jazz","Pop","R&B/Soul","Reggae","Rock","Salsa/Tropical","Soundtrack",
+  "Afrobeat","Alternative/Indie","Blues","Classical","Electronic","Folk","Funk",
+  "Hip Hop","Jazz","Pop","R&B/Soul","Reggae","Rock","Salsa/Tropical","Soundtrack",
 ];
 const OWNERS = ["Diego", "Charlie", "Ysita", "Roy", "Joul", "Other"];
 const FORMATS = ["LP", "2xLP", "EP", "Single", '12"', "Box Set"];
@@ -397,7 +400,9 @@ function AddNew({ onAdd }) {
 }
 
 // ── Wishlist ────────────────────────────────────────────────────────────────
-const GENRE_OPTIONS = ["Alternative/Indie","Blues","Classical","Electronic","Folk","Funk","Hip Hop","Jazz","Pop","R&B/Soul","Reggae","Rock","Salsa/Tropical","Soundtrack"];
+// Same list as the add/edit forms -- kept as one definition so adding a
+// genre in future only means editing HOUSE_GENRES above.
+const GENRE_OPTIONS = HOUSE_GENRES;
 
 function BuyForm({ item, onCancel, onConfirm }) {
   const [label, setLabel] = useState_a("");
@@ -599,6 +604,13 @@ function AdminGate({ onUnlock }) {
     </div>
   );
 }
+
+// Shared with detail.jsx's edit form so there is ONE definition of each
+// list. detail.jsx reads these off window at render time, which is after
+// every script has loaded.
+window.HOUSE_GENRES = HOUSE_GENRES;
+window.OWNERS = OWNERS;
+window.FORMATS = FORMATS;
 
 window.AddNew = AddNew;
 window.WishlistView = WishlistView;

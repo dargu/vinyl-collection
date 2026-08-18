@@ -12,6 +12,112 @@ function fmtAdded(iso) {
   return d.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" });
 }
 
+// ── Edit a record (owner only) ──────────────────────────────────────────
+// Lives here rather than in admin.jsx because you fix a record while
+// LOOKING at it -- spotting a wrong genre happens on the detail page,
+// not on a separate admin screen.
+//
+// Cover art, tracklist and the Discogs release id aren't editable: they
+// were fetched as a set from one specific pressing, and hand-editing them
+// apart would leave the record disagreeing with itself. If the wrong
+// pressing got picked, re-add the right one.
+function EditRecord({ rec, onSave, onCancel }) {
+  const GENRES = window.HOUSE_GENRES || [];
+  const OWNERS_L = window.OWNERS || ["Diego"];
+  const FORMATS_L = window.FORMATS || ["LP"];
+
+  const [f, setF] = useState_d({
+    artist: rec.artist || "",
+    album: rec.album || "",
+    genre: (rec.genres && rec.genres[0]) || rec.genre || "",
+    format: rec.format || "LP",
+    label: rec.label || "",
+    catalog_no: rec.catalog_no || "",
+    original_year: rec.original_year || "",
+    pressing_year: rec.pressing_year || "",
+    owner: rec.owner || "Diego",
+    notes: rec.notes || "",
+    history: rec.history || "",
+    listening_notes: rec.listening_notes || "",
+  });
+  const [saving, setSaving] = useState_d(false);
+  const [err, setErr] = useState_d("");
+
+  function set(k, v) { setF((p) => ({ ...p, [k]: v })); setErr(""); }
+
+  async function save() {
+    if (!f.artist.trim() || !f.album.trim()) {
+      setErr("Artist and album are both required.");
+      return;
+    }
+    setSaving(true); setErr("");
+    try {
+      await onSave(rec.id, {
+        ...f,
+        artist: f.artist.trim(),
+        album: f.album.trim(),
+        original_year: f.original_year ? parseInt(f.original_year, 10) || null : null,
+        pressing_year: f.pressing_year ? parseInt(f.pressing_year, 10) || null : null,
+      });
+      onCancel();
+    } catch (e) {
+      setErr("Couldn't save that — check your connection and try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="editrec">
+      <div className="editrec__hd">
+        <span className="section-h" style={{ margin: 0 }}>Editing this record</span>
+        <button className="btn btn--xs btn--ghost" onClick={onCancel}>Cancel</button>
+      </div>
+
+      <div className="addrec__grid">
+        <label><span>Artist</span><input className="input" value={f.artist} onChange={(e)=>set("artist",e.target.value)} /></label>
+        <label><span>Album</span><input className="input" value={f.album} onChange={(e)=>set("album",e.target.value)} /></label>
+        <label><span>Genre</span>
+          <input className="input" list="genrelist-edit" value={f.genre} onChange={(e)=>set("genre",e.target.value)} />
+          <datalist id="genrelist-edit">{GENRES.map((g) => <option key={g} value={g} />)}</datalist>
+        </label>
+        <label><span>Format</span>
+          <select className="input" value={f.format} onChange={(e)=>set("format",e.target.value)}>
+            {FORMATS_L.map((x) => <option key={x}>{x}</option>)}
+          </select>
+        </label>
+        <label><span>Label</span><input className="input" value={f.label} onChange={(e)=>set("label",e.target.value)} /></label>
+        <label><span>Catalog no.</span><input className="input mono" value={f.catalog_no} onChange={(e)=>set("catalog_no",e.target.value)} /></label>
+        <label><span>Released</span><input className="input mono" value={f.original_year} onChange={(e)=>set("original_year",e.target.value)} /></label>
+        <label><span>This pressing</span><input className="input mono" value={f.pressing_year} onChange={(e)=>set("pressing_year",e.target.value)} /></label>
+        <label><span>Owner</span>
+          <select className="input" value={f.owner} onChange={(e)=>set("owner",e.target.value)}>
+            {OWNERS_L.map((p) => <option key={p}>{p}</option>)}
+          </select>
+        </label>
+      </div>
+
+      <label className="addrec__notes"><span>Notes</span>
+        <textarea className="input" rows={2} value={f.notes} onChange={(e)=>set("notes",e.target.value)} placeholder="Where bought, edition, gift from…" />
+      </label>
+      <label className="addrec__notes"><span>History</span>
+        <textarea className="input" rows={3} value={f.history} onChange={(e)=>set("history",e.target.value)} placeholder="The story of the record itself…" />
+      </label>
+      <label className="addrec__notes"><span>Listening notes</span>
+        <textarea className="input" rows={3} value={f.listening_notes} onChange={(e)=>set("listening_notes",e.target.value)} placeholder="What to listen for…" />
+      </label>
+
+      {err && <div className="addrec__err">{err}</div>}
+
+      <div className="form__actions">
+        <span className="muted small">Cover art and tracklist come from Discogs and aren't editable here.</span>
+        <div className="grow" />
+        <button className="btn btn--solid" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save changes"}</button>
+      </div>
+    </div>
+  );
+}
+
 // The prototype's "MiniReview" called window.claude.complete() to
 // generate AI liner notes on the fly. That only works inside the
 // claude.ai artifact sandbox -- on a real deployed site there's no
@@ -121,14 +227,26 @@ function Notes({ recId, isOwner }) {
   );
 }
 
-function Detail({ rec, onClose, isOwner }) {
+function Detail({ rec, onClose, isOwner, onSaveRecord }) {
   if (!rec) return null;
+  const [editing, setEditing] = useState_d(false);
+
+  // Close the editor when you switch to a different record, otherwise the
+  // form would sit there still holding the previous record's values.
+  useEffect_d(() => { setEditing(false); }, [rec.id]);
 
   useEffect_d(() => {
-    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    // While editing, Escape should back out of the form rather than close
+    // the whole record -- losing typed changes to a stray keypress is a
+    // nasty surprise.
+    const onKey = (e) => {
+      if (e.key !== "Escape") return;
+      if (editing) setEditing(false);
+      else onClose();
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, [onClose, editing]);
 
   const spotifySearch = `https://open.spotify.com/search/${encodeURIComponent(rec.artist + " " + rec.album)}`;
   const appleSearch = `https://music.apple.com/us/search?term=${encodeURIComponent(rec.artist + " " + rec.album)}`;
@@ -143,7 +261,12 @@ function Detail({ rec, onClose, isOwner }) {
             <span className="dot">/</span>
             <span>{(rec.genre || "").toUpperCase()}</span>
           </div>
-          <button className="iconbtn" onClick={onClose} aria-label="Close">×</button>
+          <div className="detail__hdactions">
+            {isOwner && onSaveRecord && !editing && (
+              <button className="btn btn--xs btn--ghost" onClick={() => setEditing(true)}>Edit</button>
+            )}
+            <button className="iconbtn" onClick={onClose} aria-label="Close">×</button>
+          </div>
         </header>
 
         <div className="detail__body">
@@ -177,6 +300,10 @@ function Detail({ rec, onClose, isOwner }) {
           <div className="detail__right">
             <h1 className="detail__album">{rec.album}</h1>
             <h2 className="detail__artist">{rec.artist}</h2>
+
+            {editing && (
+              <EditRecord rec={rec} onSave={onSaveRecord} onCancel={() => setEditing(false)} />
+            )}
 
             <dl className="kv">
               <div><dt>Genre</dt><dd>{(rec.genres && rec.genres.length ? rec.genres.join(", ") : rec.genre)}</dd></div>
