@@ -839,9 +839,44 @@ button.badge--notyet:not(:disabled):hover {
   padding: 10px; border: 1px solid var(--hair); border-radius: 6px;
 }
 .albumrow__x { all: unset; cursor: pointer; color: var(--muted); font-size: 16px; padding: 4px 6px; align-self: center; }
-.albumrow__x:hover { color: var(--accent); }
+.albumrow__x:hover { color: var(--ink); }
+
+/* Picking an album out of the collection, instead of typing it */
+.albumrow--picking { grid-template-columns: 2fr 1fr auto; }
+.albumrow__pick { min-width: 0; }
+.albumrow__toggle { grid-column: 1 / -1; margin-top: 2px; }
+
+.recpicker { position: relative; }
+.recpicker__list {
+  list-style: none; margin: 4px 0 0; padding: 4px;
+  border: 1px solid var(--hair); border-radius: 6px; background: var(--bg);
+  box-shadow: var(--shadow-lift);
+  position: absolute; z-index: 30; left: 0; right: 0; max-height: 320px; overflow-y: auto;
+}
+.recpicker__opt {
+  all: unset; cursor: pointer; display: flex; gap: 9px; align-items: center;
+  width: 100%; box-sizing: border-box; padding: 6px; border-radius: 4px;
+}
+.recpicker__opt:hover { background: var(--bg-2); }
+.recpicker__art { width: 34px; height: 34px; border-radius: 3px; object-fit: cover; flex-shrink: 0; background: var(--bg-2); }
+.recpicker__art--none { background: var(--hair-2); }
+.recpicker__txt { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.recpicker__title { font-size: 12.5px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.recpicker__sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.recpicker__none { padding: 6px 2px; }
+
+.pickedrec {
+  display: flex; gap: 9px; align-items: center;
+  padding: 6px 8px; border: 1px solid var(--hair); border-radius: 6px; background: var(--bg-2);
+}
+.pickedrec__art { width: 34px; height: 34px; border-radius: 3px; object-fit: cover; flex-shrink: 0; background: var(--hair-2); }
+.pickedrec__art--none { background: var(--hair-2); }
+.pickedrec__body { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 1px; }
+.pickedrec__title { font-size: 12.5px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pickedrec__sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 720px) {
   .albumrow { grid-template-columns: 1fr 1fr; }
+  .albumrow--picking { grid-template-columns: 1fr auto; }
 }
 
 /* ── Generic modal (add/edit session) ────────────────────────────────────── */

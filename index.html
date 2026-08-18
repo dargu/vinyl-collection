@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="styles.css?v=31" />
+<link rel="stylesheet" href="styles.css?v=32" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
@@ -22,7 +22,7 @@
 <script type="text/babel" src="detail.jsx?v=3"></script>
 <script type="text/babel" src="admin.jsx?v=4"></script>
 <script type="text/babel" src="dashboard.jsx?v=2"></script>
-<script type="text/babel" src="sessions.jsx?v=2"></script>
+<script type="text/babel" src="sessions.jsx?v=3"></script>
 </head>
 <body>
 <div id="root"></div>
@@ -157,7 +157,15 @@ function App() {
     const o = (owner || "Diego").trim().toLowerCase();
     return records.find((r) => r.artist.trim().toLowerCase() === a && r.album.trim().toLowerCase() === t && (r.owner || "Diego").trim().toLowerCase() === o);
   }
-  async function ensureRecord({ artist, title, owner }) {
+  // `recordId` is set when the album was chosen from the collection picker,
+  // which is the normal case -- then there's nothing to look up or create.
+  // Only a deliberately typed-in album falls through to matching, and then
+  // to creating a new record.
+  async function ensureRecord({ recordId, artist, title, owner }) {
+    if (recordId) {
+      const picked = records.find((r) => r.id === recordId);
+      if (picked) return picked;
+    }
     const existing = findExistingRecord(artist, title, owner);
     if (existing) return existing;
     const rec = await window.VC.insertRecord({ artist, album: title, owner });
@@ -167,14 +175,14 @@ function App() {
   async function addSessionFull({ date, location, attendees, notes, albums }) {
     const session = await window.VC.insertSession({ date, location, attendees, notes });
     for (const a of albums) {
-      const rec = await ensureRecord({ artist: a.artist, title: a.title, owner: a.owner });
+      const rec = await ensureRecord(a);
       await window.VC.addPlay(session.id, rec.id, a.notes);
     }
     await reloadSessions();
   }
-  async function addPlaySingle(sessionId, { artist, title, owner, notes }) {
-    const rec = await ensureRecord({ artist, title, owner });
-    await window.VC.addPlay(sessionId, rec.id, notes);
+  async function addPlaySingle(sessionId, fields) {
+    const rec = await ensureRecord(fields);
+    await window.VC.addPlay(sessionId, rec.id, fields.notes);
     await reloadSessions();
   }
   async function updateSessionHandler(id, fields) {

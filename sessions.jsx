@@ -70,46 +70,165 @@ function AttendeePicker({ selected, onToggle, otherValue, onOtherChange }) {
   );
 }
 
-function AlbumRow({ row, onChange, onRemove, removable }) {
-  function set(k, v) { onChange({ ...row, [k]: v }); }
-  return (
-    <div className="albumrow">
-      <input className="input" placeholder="Artist" value={row.artist} onChange={(e) => set("artist", e.target.value)} />
-      <input className="input" placeholder="Album title" value={row.title} onChange={(e) => set("title", e.target.value)} />
-      <div>
-        <PersonSelect
-          value={row.owner}
-          onChange={(v) => set("owner", v)}
-          otherValue={row.ownerOther || ""}
-          onOtherChange={(v) => set("ownerOther", v)}
-          placeholder="Brought by…"
-        />
+// Pick an album from records that already exist, rather than typing it.
+//
+// WHY: the old free-text version created a brand new record whenever what
+// you typed didn't exactly match something already stored. "Sorrow Tears
+// and Blood" vs "Sorrow, Tears & Blood" produced two rows for one album.
+// Choosing from the list makes that impossible -- a typo can't invent a
+// record if typing isn't how you choose one.
+//
+// Anything genuinely new still gets in via "Not in the collection yet",
+// which falls back to typing it -- but that's now a deliberate act rather
+// than the accidental default.
+function RecordPicker({ records, row, onPick }) {
+  const [q, setQ] = useState_s("");
+  const [open, setOpen] = useState_s(false);
+
+  const term = q.trim().toLowerCase();
+  const matches = !term ? [] : records
+    .filter((r) => (r.artist + " " + r.album).toLowerCase().includes(term))
+    .slice(0, 8);
+
+  if (row.recordId) {
+    const picked = records.find((r) => r.id === row.recordId);
+    return (
+      <div className="pickedrec">
+        {picked && picked.cover_url
+          ? <img className="pickedrec__art" src={picked.cover_url} alt="" />
+          : <div className="pickedrec__art pickedrec__art--none" />}
+        <div className="pickedrec__body">
+          <div className="pickedrec__title">{row.title}</div>
+          <div className="pickedrec__sub muted small">{row.artist} <span className="dot">·</span> {row.owner}</div>
+        </div>
+        <button type="button" className="albumrow__x" title="Choose a different album"
+          onClick={() => { onPick({ recordId: null, artist: "", title: "", owner: "" }); setQ(""); }}>×</button>
       </div>
-      <input className="input" placeholder="Notes (optional)" value={row.notes} onChange={(e) => set("notes", e.target.value)} />
-      {removable && <button type="button" className="albumrow__x" onClick={onRemove} title="Remove this album">×</button>}
+    );
+  }
+
+  return (
+    <div className="recpicker">
+      <input
+        className="input"
+        placeholder="Search the collection…"
+        value={q}
+        onChange={(e) => { setQ(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+      />
+      {open && matches.length > 0 && (
+        <ul className="recpicker__list">
+          {matches.map((r) => (
+            <li key={r.id}>
+              <button type="button" className="recpicker__opt" onClick={() => {
+                onPick({ recordId: r.id, artist: r.artist, title: r.album, owner: r.owner || "Diego" });
+                setQ(""); setOpen(false);
+              }}>
+                {r.cover_url
+                  ? <img className="recpicker__art" src={r.cover_url} alt="" loading="lazy" />
+                  : <div className="recpicker__art recpicker__art--none" />}
+                <span className="recpicker__txt">
+                  <span className="recpicker__title">{r.album}</span>
+                  <span className="recpicker__sub muted small">{r.artist} <span className="dot">·</span> {r.owner || "Diego"}</span>
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {open && term && matches.length === 0 && (
+        <div className="recpicker__none muted small">Nothing matches “{q}”.</div>
+      )}
     </div>
   );
 }
 
-function emptyAlbumRow() { return { artist: "", title: "", owner: "", ownerOther: "", notes: "" }; }
+function AlbumRow({ row, onChange, onRemove, removable, records }) {
+  function set(k, v) { onChange({ ...row, [k]: v }); }
+  const manual = !!row.manual;
+
+  return (
+    <div className={"albumrow" + (manual ? "" : " albumrow--picking")}>
+      {manual ? (
+        <>
+          <input className="input" placeholder="Artist" value={row.artist} onChange={(e) => set("artist", e.target.value)} />
+          <input className="input" placeholder="Album title" value={row.title} onChange={(e) => set("title", e.target.value)} />
+          <div>
+            <PersonSelect
+              value={row.owner}
+              onChange={(v) => set("owner", v)}
+              otherValue={row.ownerOther || ""}
+              onOtherChange={(v) => set("ownerOther", v)}
+              placeholder="Brought by…"
+            />
+          </div>
+        </>
+      ) : (
+        <div className="albumrow__pick">
+          <RecordPicker
+            records={records || []}
+            row={row}
+            onPick={(fields) => onChange({ ...row, ...fields })}
+          />
+        </div>
+      )}
+
+      <input className="input" placeholder="Notes (optional)" value={row.notes} onChange={(e) => set("notes", e.target.value)} />
+      {removable && <button type="button" className="albumrow__x" onClick={onRemove} title="Remove this album">×</button>}
+
+      <div className="albumrow__toggle">
+        {manual ? (
+          <button type="button" className="btn btn--xs btn--ghost"
+            onClick={() => onChange({ ...row, manual: false, artist: "", title: "", owner: "", ownerOther: "" })}>
+            ← Pick from the collection instead
+          </button>
+        ) : !row.recordId && (
+          <button type="button" className="btn btn--xs btn--ghost"
+            onClick={() => onChange({ ...row, manual: true, recordId: null })}>
+            Not in the collection yet — type it in
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function emptyAlbumRow() {
+  return { recordId: null, artist: "", title: "", owner: "", ownerOther: "", notes: "", manual: false };
+}
 
 function resolveOwner(row) { return row.owner === "Other" ? (row.ownerOther || "Other").trim() : row.owner; }
 
-function AddPlayInline({ onAdd, onCancel }) {
+// A row is usable if you picked a record, or typed both artist and title.
+function rowFilled(row) {
+  return !!row.recordId || (!!row.artist.trim() && !!row.title.trim());
+}
+
+function rowToPlay(row) {
+  return {
+    recordId: row.recordId || null,
+    artist: row.artist.trim(),
+    title: row.title.trim(),
+    owner: resolveOwner(row) || "Diego",
+    notes: row.notes.trim() || null,
+  };
+}
+
+function AddPlayInline({ onAdd, onCancel, records }) {
   const [row, setRow] = useState_s(emptyAlbumRow());
   const [saving, setSaving] = useState_s(false);
   async function submit() {
-    if (!row.artist.trim() || !row.title.trim() || saving) return;
+    if (!rowFilled(row) || saving) return;
     setSaving(true);
     try {
-      await onAdd({ artist: row.artist.trim(), title: row.title.trim(), owner: resolveOwner(row) || "Diego", notes: row.notes.trim() || null });
+      await onAdd(rowToPlay(row));
     } finally {
       setSaving(false);
     }
   }
   return (
     <div className="sessionrow__addform">
-      <AlbumRow row={row} onChange={setRow} />
+      <AlbumRow row={row} onChange={setRow} records={records} />
       <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
         <button className="btn btn--xs btn--solid" disabled={saving} onClick={submit}>{saving ? "Adding…" : "Add"}</button>
         <button className="btn btn--xs btn--ghost" onClick={onCancel}>Cancel</button>
@@ -245,7 +364,7 @@ function SessionsPage({ sessions, records, onOpen, ribbon, isOwner, go }) {
 
 // ── owner: log sessions + record what got played ───────────────────────
 
-function SessionForm({ initial, onCancel, onSave, saving }) {
+function SessionForm({ initial, onCancel, onSave, saving, records }) {
   const [date, setDate] = useState_s(initial.date || new Date().toISOString().slice(0, 10));
   const [locSel, setLocSel] = useState_s(PEOPLE.includes(initial.locationPerson) ? initial.locationPerson : (initial.location ? "Other" : ""));
   const [locOther, setLocOther] = useState_s(initial.locationOther || (initial.location && !PEOPLE.includes(initial.locationPerson) ? initial.location : ""));
@@ -275,9 +394,7 @@ function SessionForm({ initial, onCancel, onSave, saving }) {
   function submit(e) {
     e.preventDefault();
     if (!date) return;
-    const cleanAlbums = albums
-      .filter((a) => a.artist.trim() && a.title.trim())
-      .map((a) => ({ artist: a.artist.trim(), title: a.title.trim(), owner: resolveOwner(a) || "Diego", notes: a.notes.trim() || null }));
+    const cleanAlbums = albums.filter(rowFilled).map(rowToPlay);
     onSave({ date, location: locationValue(), attendees: attendeesValue(), notes: notes.trim() || null, albums: cleanAlbums });
   }
 
@@ -301,7 +418,7 @@ function SessionForm({ initial, onCancel, onSave, saving }) {
           <span className="section-h">Albums played</span>
           <div className="albumrows">
             {albums.map((row, i) => (
-              <AlbumRow key={i} row={row} onChange={(r) => setAlbum(i, r)} onRemove={() => removeAlbum(i)} removable={albums.length > 1} />
+              <AlbumRow key={i} row={row} onChange={(r) => setAlbum(i, r)} onRemove={() => removeAlbum(i)} removable={albums.length > 1} records={records} />
             ))}
           </div>
           <button type="button" className="btn btn--ghost btn--xs" onClick={addAlbum}>+1 album</button>
@@ -412,6 +529,7 @@ function SessionsAdmin({ sessions, records, onAddSession, onUpdateSession, onAdd
                 <div className="sessionrow__add">
                   {addingPlayTo === s.id ? (
                     <AddPlayInline
+                      records={records}
                       onAdd={async (fields) => { await onAddPlay(s.id, fields); setAddingPlayTo(null); }}
                       onCancel={() => setAddingPlayTo(null)}
                     />
@@ -427,7 +545,7 @@ function SessionsAdmin({ sessions, records, onAddSession, onUpdateSession, onAdd
 
       {adding && (
         <Modal title="Add session" onClose={() => setAdding(false)}>
-          <SessionForm initial={{}} onCancel={() => setAdding(false)} onSave={handleAddSession} saving={saving} />
+          <SessionForm initial={{}} onCancel={() => setAdding(false)} onSave={handleAddSession} saving={saving} records={records} />
         </Modal>
       )}
 
