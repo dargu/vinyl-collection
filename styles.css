@@ -943,3 +943,5 @@ button.badge--notyet:not(:disabled):hover {
 }
 .wlist__open:hover .wlist__album { text-decoration: underline; text-underline-offset: 2px; }
 .detail__previewnote { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--hair-2); }
+.editrec__othergenre { display: flex; gap: 8px; align-items: center; }
+.editrec__othergenre .input { flex: 1; min-width: 0; }

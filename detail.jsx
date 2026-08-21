@@ -43,6 +43,13 @@ function EditRecord({ rec, onSave, onCancel }) {
   const [saving, setSaving] = useState_d(false);
   const [err, setErr] = useState_d("");
 
+  // A record can carry a genre that isn't on the house list -- from Discogs,
+  // or typed here previously. Keep it as an option so opening the dropdown
+  // never silently discards it.
+  const startGenre = (rec.genres && rec.genres[0]) || rec.genre || "";
+  const offListGenre = startGenre && !GENRES.includes(startGenre) ? startGenre : null;
+  const [customGenre, setCustomGenre] = useState_d(false);
+
   function set(k, v) { setF((p) => ({ ...p, [k]: v })); setErr(""); }
 
   async function save() {
@@ -78,8 +85,32 @@ function EditRecord({ rec, onSave, onCancel }) {
         <label><span>Artist</span><input className="input" value={f.artist} onChange={(e)=>set("artist",e.target.value)} /></label>
         <label><span>Album</span><input className="input" value={f.album} onChange={(e)=>set("album",e.target.value)} /></label>
         <label><span>Genre</span>
-          <input className="input" list="genrelist-edit" value={f.genre} onChange={(e)=>set("genre",e.target.value)} />
-          <datalist id="genrelist-edit">{GENRES.map((g) => <option key={g} value={g} />)}</datalist>
+          {/* A real <select>, not an <input list>. A datalist filters its
+              suggestions against what's already typed, so on a record that
+              already has a genre, clicking the arrow showed exactly one
+              option -- the value you were trying to change. "Other…" keeps
+              the door open for a genre that isn't on the house list. */}
+          {customGenre ? (
+            <div className="editrec__othergenre">
+              <input className="input" autoFocus value={f.genre} placeholder="New genre"
+                onChange={(e)=>set("genre", e.target.value)} />
+              <button type="button" className="btn btn--xs btn--ghost"
+                onClick={() => { setCustomGenre(false); if (!GENRES.includes(f.genre)) set("genre", offListGenre || ""); }}>
+                Pick from the list
+              </button>
+            </div>
+          ) : (
+            <select className="input" value={f.genre}
+              onChange={(e) => {
+                if (e.target.value === "__other") { setCustomGenre(true); set("genre", ""); }
+                else set("genre", e.target.value);
+              }}>
+              <option value="">— none —</option>
+              {offListGenre && <option value={offListGenre}>{offListGenre}</option>}
+              {GENRES.map((g) => <option key={g} value={g}>{g}</option>)}
+              <option value="__other">Other…</option>
+            </select>
+          )}
         </label>
         <label><span>Format</span>
           <select className="input" value={f.format} onChange={(e)=>set("format",e.target.value)}>
