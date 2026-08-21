@@ -463,16 +463,6 @@ function WishlistAdd({ onSave, onCancel }) {
     }
   }
 
-  async function pickRelease(r) {
-    setBusy(true); setErr("");
-    try {
-      await fromRelease(await window.VC.discogsRelease(r.id));
-    } catch (e) {
-      setErr("Couldn't load that release. Try another, or enter it manually.");
-      setBusy(false);
-    }
-  }
-
   if (step === "manual") {
     return (
       <div className="addrec">
@@ -508,9 +498,11 @@ function WishlistAdd({ onSave, onCancel }) {
   if (step === "pick") {
     return (
       <div className="addrec">
+        {/* PickStep fetches the release itself and hands the full object
+            to onPick -- don't look it up a second time. */}
         <PickStep
           results={results} term={term} busy={busy} setBusy={setBusy}
-          onPick={pickRelease}
+          onPick={fromRelease}
           onBack={() => setStep("search")}
           onManual={() => setStep("manual")}
         />
