@@ -227,7 +227,13 @@ function Notes({ recId, isOwner }) {
   );
 }
 
-function Detail({ rec, onClose, isOwner, onSaveRecord }) {
+// `preview` mode is for wishlist items: albums you don't own yet, so there's
+// no record row behind them. That means no Edit button (nothing to update)
+// and no friends' notes (they'd be written against a record_id that doesn't
+// exist). Everything else -- cover, metadata, tracklist, streaming links --
+// works the same, which is the point of reusing this view rather than
+// building a second one to keep in sync.
+function Detail({ rec, onClose, isOwner, onSaveRecord, preview }) {
   if (!rec) return null;
   const [editing, setEditing] = useState_d(false);
 
@@ -262,7 +268,7 @@ function Detail({ rec, onClose, isOwner, onSaveRecord }) {
             <span>{(rec.genre || "").toUpperCase()}</span>
           </div>
           <div className="detail__hdactions">
-            {isOwner && onSaveRecord && !editing && (
+            {isOwner && onSaveRecord && !preview && !editing && (
               <button className="btn btn--xs btn--ghost" onClick={() => setEditing(true)}>Edit</button>
             )}
             <button className="iconbtn" onClick={onClose} aria-label="Close">×</button>
@@ -337,7 +343,9 @@ function Detail({ rec, onClose, isOwner, onSaveRecord }) {
               <Tracklist tracks={rec.tracks} />
             </div>
 
-            <Notes recId={rec.id} isOwner={isOwner} />
+            {preview
+              ? <div className="detail__previewnote muted small">On the wishlist — not in the collection yet.</div>
+              : <Notes recId={rec.id} isOwner={isOwner} />}
           </div>
         </div>
       </article>

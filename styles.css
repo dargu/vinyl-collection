@@ -934,3 +934,12 @@ button.badge--notyet:not(:disabled):hover {
   .sessions-row { flex-wrap: wrap; }
   .sessions-col-loc { width: auto; }
 }
+
+/* Wishlist rows open a read-only preview; the button wrapper must not
+   look like a button -- it's just the clickable region of the row. */
+.wlist__open {
+  all: unset; cursor: default; display: flex; align-items: flex-start;
+  gap: 14px; flex: 1 1 auto; min-width: 0;
+}
+.wlist__open:hover .wlist__album { text-decoration: underline; text-underline-offset: 2px; }
+.detail__previewnote { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--hair-2); }

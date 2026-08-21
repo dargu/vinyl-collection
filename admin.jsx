@@ -609,7 +609,7 @@ function BuyFlow({ item, onConfirm, onCancel }) {
   );
 }
 
-function WishlistView({ items, onAdd, onRemove, onMarkBought }) {
+function WishlistView({ items, onAdd, onRemove, onMarkBought, onOpen }) {
   const [adding, setAdding] = useState_a(false);
   const [buyingId, setBuyingId] = useState_a(null);
 
@@ -620,9 +620,12 @@ function WishlistView({ items, onAdd, onRemove, onMarkBought }) {
     return (
       <li key={w.id} className={w.bought ? "wlist__row--bought" : ""}>
         <div className="wlist__row">
-          {w.cover_url
-            ? <img className="wlist__art" src={w.cover_url} alt="" loading="lazy" />
-            : <div className="wlist__art wlist__art--none" />}
+          {/* Cover and text open a read-only preview; the action buttons
+              sit outside so clicking Delete never opens the panel. */}
+          <button type="button" className="wlist__open" onClick={() => onOpen && onOpen(w)}>
+            {w.cover_url
+              ? <img className="wlist__art" src={w.cover_url} alt="" loading="lazy" />
+              : <div className="wlist__art wlist__art--none" />}
           <div className="wlist__main">
             <div className="wlist__album">
               {w.album || <span className="muted">Album TBD</span>}
@@ -636,6 +639,7 @@ function WishlistView({ items, onAdd, onRemove, onMarkBought }) {
             )}
             {w.note && <div className="wlist__note">{w.note}</div>}
           </div>
+          </button>
           <div className="wlist__actions">
             {!w.bought && (
               <button className="btn btn--xs btn--solid" onClick={() => setBuyingId(w.id === buyingId ? null : w.id)}>
