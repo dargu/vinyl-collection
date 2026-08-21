@@ -77,12 +77,13 @@ async function fetchCollection() {
   return data.map(mapRecordRow);
 }
 
+// Newest first. The original `priority` sort was dropped in migration 007 --
+// nothing ever set it, so it sorted by a column that was always 0.
 async function fetchWishlist() {
   const { data, error } = await sb
     .from("wishlist")
     .select("*")
-    .order("priority", { ascending: false })
-    .order("created_at", { ascending: true });
+    .order("created_at", { ascending: false });
   if (error) throw error;
   return data.map((w) => ({
     id: w.id,
@@ -91,6 +92,14 @@ async function fetchWishlist() {
     note: w.notes || "",
     bought: !!w.acquired_record_id,
     boughtOn: w.acquired_at ? w.acquired_at.slice(0, 10) : null,
+    // Discogs identity, added in migration 007. Present for anything added
+    // through the search; null for hand-typed entries and older rows.
+    discogs_release_id: w.discogs_release_id || null,
+    cover_url: w.cover_url || null,
+    label: w.label || "",
+    catalog_no: w.catalog_no || "",
+    pressing_year: w.pressing_year || null,
+    format: w.format || "",
   }));
 }
 
@@ -278,10 +287,23 @@ async function discogsRelease(id) {
   return discogsCall({ mode: "release", id: String(id) });
 }
 
-async function insertWishlistItem({ artist, album, note }) {
+// Accepts either a hand-typed entry (artist/album/note only) or one picked
+// from Discogs, which additionally carries the release identity used to
+// re-fetch full metadata when it's eventually bought.
+async function insertWishlistItem({ artist, album, note, discogs_release_id, cover_url, label, catalog_no, pressing_year, format }) {
   const { data, error } = await sb
     .from("wishlist")
-    .insert({ artist, title: album || null, notes: note || null })
+    .insert({
+      artist,
+      title: album || null,
+      notes: note || null,
+      discogs_release_id: discogs_release_id || null,
+      cover_url: cover_url || null,
+      label: label || null,
+      catalog_no: catalog_no || null,
+      pressing_year: pressing_year || null,
+      format: format || null,
+    })
     .select()
     .single();
   if (error) throw error;
@@ -293,16 +315,13 @@ async function removeWishlistItem(id) {
   if (error) throw error;
 }
 
+// `fields` is a full record draft, already reviewed on screen -- including
+// cover art and tracklist when the item came from Discogs. Uses
+// insertRecordFull so a promoted wishlist item is indistinguishable from
+// one added directly through the collection.
 async function markWishlistBought(wishItem, fields) {
   // 1. create the real record
-  const newRecord = await insertRecord({
-    artist: wishItem.artist,
-    album: wishItem.album,
-    genre: fields.genre,
-    format: fields.format,
-    label: fields.label,
-    notes: fields.notes,
-  });
+  const newRecord = await insertRecordFull(fields);
   // 2. point the wishlist row at it and stamp the date, rather than
   //    deleting it -- so "this was on my list for two years" survives.
   const { error } = await sb

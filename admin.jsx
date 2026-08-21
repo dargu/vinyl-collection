@@ -1,6 +1,6 @@
 // admin.jsx — owner-only views: dashboard, add new, wishlist, loans
 
-const { useState: useState_a } = React;
+const { useState: useState_a, useEffect: useEffect_a } = React;
 
 // ── Add a record ────────────────────────────────────────────────────────────
 // Three-step flow: search -> pick the pressing -> check and save.
@@ -423,86 +423,269 @@ function AddNew({ onAdd }) {
 }
 
 // ── Wishlist ────────────────────────────────────────────────────────────────
-// Same list as the add/edit forms -- kept as one definition so adding a
-// genre in future only means editing HOUSE_GENRES above.
-const GENRE_OPTIONS = HOUSE_GENRES;
 
-function BuyForm({ item, onCancel, onConfirm }) {
-  const [label, setLabel] = useState_a("");
-  const [genre, setGenre] = useState_a("");
-  const [format, setFormat] = useState_a("LP");
-  const [notes, setNotes] = useState_a(item.note || "");
-  return (
-    <div className="wlist__buy">
-      <div className="wlist__buy-grid">
-        <label><span>Label</span><input className="input" value={label} onChange={(e)=>setLabel(e.target.value)} placeholder="e.g. Blue Note" /></label>
-        <label><span>Genre</span>
-          <input className="input" list="genrelist-buy" value={genre} onChange={(e)=>setGenre(e.target.value)} />
-          <datalist id="genrelist-buy">{GENRE_OPTIONS.map((g)=> <option key={g} value={g} />)}</datalist>
+
+
+// Adding to the wishlist: the same Discogs search the collection uses,
+// but it stops once you've picked a pressing -- there's no review screen,
+// because a wishlist entry isn't a record yet. The pressing is stored as a
+// reference, not a commitment; you confirm it when you actually buy.
+function WishlistAdd({ onSave, onCancel }) {
+  const [step, setStep] = useState_a("search"); // search | pick | manual
+  const [results, setResults] = useState_a([]);
+  const [term, setTerm] = useState_a("");
+  const [busy, setBusy] = useState_a(false);
+  const [err, setErr] = useState_a("");
+
+  // Hand-typed fallback, for records Discogs doesn't have.
+  const [artist, setArtist] = useState_a("");
+  const [album, setAlbum] = useState_a("");
+  const [note, setNote] = useState_a("");
+
+  async function fromRelease(rel) {
+    setBusy(true);
+    try {
+      await onSave({
+        artist: rel.artist,
+        album: rel.title,
+        note: "",
+        discogs_release_id: rel.discogs_release_id,
+        cover_url: rel.cover_url,
+        label: rel.label,
+        catalog_no: rel.catalog_no,
+        pressing_year: rel.pressing_year,
+        format: rel.format,
+      });
+    } catch (e) {
+      setErr("Couldn't save that — check your connection and try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function pickRelease(r) {
+    setBusy(true); setErr("");
+    try {
+      await fromRelease(await window.VC.discogsRelease(r.id));
+    } catch (e) {
+      setErr("Couldn't load that release. Try another, or enter it manually.");
+      setBusy(false);
+    }
+  }
+
+  if (step === "manual") {
+    return (
+      <div className="addrec">
+        <div className="addrec__pickhd">
+          <div>
+            <div className="addrec__picktitle">Add by hand</div>
+            <p className="addrec__lede">No cover art or metadata — you can always replace it later.</p>
+          </div>
+          <button className="btn btn--xs btn--ghost" onClick={() => setStep("search")}>Back</button>
+        </div>
+        <div className="addrec__grid">
+          <label><span>Artist</span><input className="input" autoFocus value={artist} onChange={(e)=>{setArtist(e.target.value);setErr("");}} /></label>
+          <label><span>Album</span><input className="input" value={album} onChange={(e)=>{setAlbum(e.target.value);setErr("");}} /></label>
+        </div>
+        <label className="addrec__notes"><span>Note</span>
+          <input className="input" value={note} onChange={(e)=>setNote(e.target.value)} placeholder="Why you want it, who mentioned it…" />
         </label>
-        <label><span>Format</span>
-          <select className="input" value={format} onChange={(e)=>setFormat(e.target.value)}>
-            <option>LP</option><option>EP</option><option>7"</option><option>10"</option><option>2xLP</option>
-          </select>
-        </label>
-        <label className="span2"><span>Notes</span><input className="input" value={notes} onChange={(e)=>setNotes(e.target.value)} placeholder="Where bought, edition, gift from…" /></label>
+        {err && <div className="addrec__err">{err}</div>}
+        <div className="form__actions">
+          <div className="grow" />
+          <button className="btn btn--ghost" onClick={onCancel}>Cancel</button>
+          <button className="btn btn--solid" disabled={busy} onClick={async () => {
+            if (!artist.trim()) { setErr("An artist is required."); return; }
+            setBusy(true);
+            try { await onSave({ artist: artist.trim(), album: album.trim(), note: note.trim() }); }
+            catch (e) { setErr("Couldn't save that — try again."); setBusy(false); }
+          }}>{busy ? "Adding…" : "Add to wishlist"}</button>
+        </div>
       </div>
-      <div className="wlist__buy-actions">
-        <button className="btn btn--solid" onClick={() => onConfirm({ label, genre, format, notes })}>Promote to collection</button>
-        <button className="btn btn--ghost" onClick={onCancel}>Cancel</button>
+    );
+  }
+
+  if (step === "pick") {
+    return (
+      <div className="addrec">
+        <PickStep
+          results={results} term={term} busy={busy} setBusy={setBusy}
+          onPick={pickRelease}
+          onBack={() => setStep("search")}
+          onManual={() => setStep("manual")}
+        />
+        {err && <div className="addrec__err">{err}</div>}
+      </div>
+    );
+  }
+
+  return (
+    <div className="addrec">
+      <SearchStep
+        busy={busy} setBusy={setBusy}
+        onResults={(r, t) => { setResults(r); setTerm(t); setStep("pick"); }}
+        onRelease={fromRelease}
+        onManual={() => setStep("manual")}
+      />
+      {err && <div className="addrec__err">{err}</div>}
+      <div className="addrec__footrow">
+        <div className="grow" />
+        <button className="btn btn--xs btn--ghost" onClick={onCancel}>Cancel</button>
       </div>
     </div>
   );
 }
 
+// Marking a wishlist item bought. Re-fetches the release rather than
+// trusting what was stored when you wishlisted it -- you may have wanted
+// the 2019 reissue and come home with an original, and metadata that sat
+// on a want-list for two years is worth refreshing anyway.
+function BuyFlow({ item, onConfirm, onCancel }) {
+  const [draft, setDraft] = useState_a(null);
+  const [loading, setLoading] = useState_a(!!item.discogs_release_id);
+  const [saving, setSaving] = useState_a(false);
+  const [err, setErr] = useState_a("");
+
+  useEffect_a(() => {
+    let cancelled = false;
+    async function load() {
+      if (!item.discogs_release_id) {
+        // Hand-typed wishlist entry: nothing to fetch, start from what we have.
+        setDraft({ ...blankDraft(), artist: item.artist, album: item.album, notes: item.note || "" });
+        return;
+      }
+      try {
+        const rel = await window.VC.discogsRelease(item.discogs_release_id);
+        if (!cancelled) setDraft({ ...draftFromRelease(rel), notes: item.note || "" });
+      } catch (e) {
+        if (!cancelled) {
+          // Discogs unreachable shouldn't block you from filing a record you
+          // physically own -- fall back to what the wishlist already knows.
+          setErr("Couldn't reach Discogs — filling in from the wishlist entry instead.");
+          setDraft({
+            ...blankDraft(),
+            artist: item.artist, album: item.album, notes: item.note || "",
+            label: item.label || "", catalog_no: item.catalog_no || "",
+            pressing_year: item.pressing_year || "", cover_url: item.cover_url || "",
+            discogs_release_id: item.discogs_release_id,
+            format: FORMATS.includes(item.format) ? item.format : "LP",
+          });
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [item.id]);
+
+  if (loading || !draft) {
+    return <div className="wlist__buy"><span className="muted small">Refreshing from Discogs…</span></div>;
+  }
+
+  return (
+    <div className="wlist__buy">
+      {err && <div className="addrec__err">{err}</div>}
+      <ReviewStep
+        draft={draft} setDraft={setDraft}
+        saving={saving}
+        err=""
+        dupe={null}
+        onBack={onCancel}
+        onSave={async () => {
+          if (!draft.artist.trim() || !draft.album.trim()) {
+            setErr("Artist and album are both required.");
+            return;
+          }
+          setSaving(true);
+          try {
+            await onConfirm({
+              ...draft,
+              artist: draft.artist.trim(),
+              album: draft.album.trim(),
+              genres: draft.genre ? [draft.genre] : [],
+              original_year: draft.original_year ? parseInt(draft.original_year, 10) || null : null,
+              pressing_year: draft.pressing_year ? parseInt(draft.pressing_year, 10) || null : null,
+            });
+          } catch (e) {
+            setErr("Couldn't save that — check your connection and try again.");
+            setSaving(false);
+          }
+        }}
+      />
+    </div>
+  );
+}
+
 function WishlistView({ items, onAdd, onRemove, onMarkBought }) {
-  const [artist, setA] = useState_a("");
-  const [album, setAl] = useState_a("");
-  const [note, setNote] = useState_a("");
+  const [adding, setAdding] = useState_a(false);
   const [buyingId, setBuyingId] = useState_a(null);
+
+  const want = items.filter((w) => !w.bought);
+  const bought = items.filter((w) => w.bought);
+
+  function Row(w) {
+    return (
+      <li key={w.id} className={w.bought ? "wlist__row--bought" : ""}>
+        <div className="wlist__row">
+          {w.cover_url
+            ? <img className="wlist__art" src={w.cover_url} alt="" loading="lazy" />
+            : <div className="wlist__art wlist__art--none" />}
+          <div className="wlist__main">
+            <div className="wlist__album">
+              {w.album || <span className="muted">Album TBD</span>}
+              {w.bought && <span className="badge badge--bought" style={{ position: "static", marginLeft: 8 }}>✓ Bought</span>}
+            </div>
+            <div className="wlist__artist">{w.artist}</div>
+            {(w.label || w.catalog_no || w.pressing_year) && (
+              <div className="wlist__press mono">
+                {[w.label, w.catalog_no, w.pressing_year].filter(Boolean).join(" · ")}
+              </div>
+            )}
+            {w.note && <div className="wlist__note">{w.note}</div>}
+          </div>
+          <div className="wlist__actions">
+            {!w.bought && (
+              <button className="btn btn--xs btn--solid" onClick={() => setBuyingId(w.id === buyingId ? null : w.id)}>
+                {w.id === buyingId ? "Close" : "Mark bought →"}
+              </button>
+            )}
+            <button className="btn btn--xs btn--ghost wlist__delete" onClick={() => onRemove(w.id)} title="Remove from wishlist">Delete</button>
+          </div>
+        </div>
+        {buyingId === w.id && (
+          <BuyFlow
+            item={w}
+            onCancel={() => setBuyingId(null)}
+            onConfirm={async (fields) => { await onMarkBought(w, fields); setBuyingId(null); }}
+          />
+        )}
+      </li>
+    );
+  }
 
   return (
     <section className="admincard">
-      <header className="admincard__hd"><h3>Wishlist <span className="muted small">— {items.length}</span></h3></header>
-      <div className="wishlist__form">
-        <input className="input" placeholder="Artist" value={artist} onChange={(e)=>setA(e.target.value)} />
-        <input className="input" placeholder="Album" value={album} onChange={(e)=>setAl(e.target.value)} />
-        <input className="input" placeholder="Note (optional)" value={note} onChange={(e)=>setNote(e.target.value)} />
-        <button className="btn btn--solid" onClick={() => {
-          if (!artist || !album) return;
-          onAdd({ id: "w" + Date.now(), artist, album, note, label: "", genre: "" });
-          setA(""); setAl(""); setNote("");
-        }}>Add</button>
-      </div>
-      <ul className="wlist">
-        {items.map((w) => (
-          <li key={w.id} className={w.bought ? "wlist__row--bought" : ""}>
-            <div className="wlist__row">
-              <div className="wlist__main">
-                <div className="wlist__artist">
-                  {w.artist}
-                  {w.bought && <span className="badge badge--bought" style={{position:"static",marginLeft:8}}>✓ Bought</span>}
-                </div>
-                <div className="wlist__album">{w.album}</div>
-                {w.note && <div className="wlist__note">{w.note}</div>}
-              </div>
-              <div className="wlist__actions">
-                {!w.bought && <button className="btn btn--xs btn--solid" onClick={() => setBuyingId(w.id === buyingId ? null : w.id)}>
-                  {w.id === buyingId ? "Close" : "Mark bought →"}
-                </button>}
-                <button className="btn btn--xs btn--ghost wlist__delete" onClick={() => onRemove(w.id)} title="Remove from wishlist">Delete</button>
-              </div>
-            </div>
-            {buyingId === w.id && (
-              <BuyForm
-                item={w}
-                onCancel={() => setBuyingId(null)}
-                onConfirm={(fields) => { onMarkBought(w, fields); setBuyingId(null); }}
-              />
-            )}
-          </li>
-        ))}
-      </ul>
+      <header className="admincard__hd">
+        <h3>Wishlist <span className="muted small">— {want.length}</span></h3>
+        {!adding && <button className="btn btn--xs btn--solid" onClick={() => setAdding(true)}>+ Add to wishlist</button>}
+      </header>
+
+      {adding && (
+        <WishlistAdd
+          onCancel={() => setAdding(false)}
+          onSave={async (fields) => { await onAdd(fields); setAdding(false); }}
+        />
+      )}
+
+      <ul className="wlist">{want.map(Row)}</ul>
+
+      {bought.length > 0 && (
+        <>
+          <div className="wlist__divider"><span className="mono">BOUGHT · {bought.length}</span></div>
+          <ul className="wlist">{bought.map(Row)}</ul>
+        </>
+      )}
     </section>
   );
 }

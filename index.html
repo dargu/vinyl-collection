@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="styles.css?v=32" />
+<link rel="stylesheet" href="styles.css?v=33" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
@@ -15,12 +15,12 @@
 <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 
-<script src="supabase-client.js?v=6"></script>
+<script src="supabase-client.js?v=7"></script>
 <script type="text/babel" src="tweaks-panel.jsx?v=1"></script>
 <script type="text/babel" src="cover-art.jsx?v=1"></script>
 <script type="text/babel" src="shelf.jsx?v=2"></script>
 <script type="text/babel" src="detail.jsx?v=3"></script>
-<script type="text/babel" src="admin.jsx?v=5"></script>
+<script type="text/babel" src="admin.jsx?v=6"></script>
 <script type="text/babel" src="dashboard.jsx?v=2"></script>
 <script type="text/babel" src="sessions.jsx?v=5"></script>
 </head>
@@ -141,10 +141,12 @@ function App() {
     await window.VC.removeWishlistItem(id);
     setWishlist((xs) => xs.filter((w) => w.id !== id));
   }
+  // Stays on the wishlist rather than jumping to the collection: the item
+  // reappears below the fold marked ✓ Bought, which reads as confirmation
+  // and lets you promote several in a row without navigating back.
   async function markWishBought(wishItem, fields) {
     await window.VC.markWishlistBought(wishItem, fields);
     await reload();
-    go("/");
   }
 
   // Sessions: "who brought it" is just the record's owner (see
@@ -334,7 +336,9 @@ function PublicWishlistPage({ items, ribbon, isOwner, go }) {
         const Card = (w) => (
           <article className={"publist__item" + (w.bought ? " publist__item--bought" : "")} key={w.id}>
             <div style={{aspectRatio: '1/1', background: 'var(--bg-2)', marginBottom: 6, position: 'relative'}}>
-              <CoverArt artist={w.artist} album={w.album} size={200} />
+              {/* Real cover when the item came from Discogs; the generated
+                  sleeve is still the fallback for hand-typed entries. */}
+              <CoverArt artist={w.artist} album={w.album} size={200} coverUrl={w.cover_url} />
               {w.bought && <span className="badge badge--bought">✓ Bought</span>}
             </div>
             <h4>{w.artist}</h4>
