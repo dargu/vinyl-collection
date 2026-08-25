@@ -102,6 +102,42 @@ export default async function handler(req, res) {
   try {
     const token = await getToken(clientId, clientSecret);
     const query = `${artist} ${album}`.trim();
+
+    // ?probe=1 tries the plausible endpoint spellings and reports which one
+    // Tidal accepts. Used once to settle a 404 -- the docs and the live API
+    // disagreed about path casing and how spaces should be encoded.
+    // Costs several requests against a tight rate limit, so use sparingly.
+    if (req.query.probe) {
+      const enc = encodeURIComponent(query);
+      const plus = query.replace(/\s+/g, "+");
+      const candidates = [
+        `${API}/searchresults/${enc}/relationships/albums?countryCode=${countryCode}&include=albums`,
+        `${API}/searchResults/${enc}/relationships/albums?countryCode=${countryCode}&include=albums`,
+        `${API}/searchresults/${plus}/relationships/albums?countryCode=${countryCode}&include=albums`,
+        `${API}/searchresults/${enc}?countryCode=${countryCode}&include=albums`,
+        `${API}/searchResults/${enc}?countryCode=${countryCode}&include=albums`,
+      ];
+      const tried = [];
+      for (const c of candidates) {
+        try {
+          const rr = await fetch(c, {
+            headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.api+json" },
+          });
+          const text = await rr.text();
+          tried.push({
+            url: c,
+            status: rr.status,
+            // Just the head of the body -- enough to see the shape.
+            body: text.slice(0, 400),
+          });
+          if (rr.ok) break; // found a working spelling, stop burning requests
+        } catch (e) {
+          tried.push({ url: c, error: String(e).slice(0, 120) });
+        }
+        await new Promise((r2) => setTimeout(r2, 1200));
+      }
+      return res.status(200).json({ probe: tried });
+    }
     // Albums live on a relationship of the search result, not on the search
     // result itself. Asking for them by path is what actually returns them.
     const url = `${API}/searchresults/${encodeURIComponent(query)}/relationships/albums`
