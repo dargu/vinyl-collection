@@ -108,14 +108,16 @@ export default async function handler(req, res) {
     // disagreed about path casing and how spaces should be encoded.
     // Costs several requests against a tight rate limit, so use sparingly.
     if (req.query.probe) {
-      const enc = encodeURIComponent(query);
-      const plus = query.replace(/\s+/g, "+");
+      // Path casing is settled: `searchResults` exists, `searchresults` 404s.
+      // What's left is how the query has to be encoded -- %20 comes back as
+      // INVALID_RESOURCE_ID, so spaces are the problem.
+      const rel = `/relationships/albums?countryCode=${countryCode}&include=albums`;
       const candidates = [
-        `${API}/searchresults/${enc}/relationships/albums?countryCode=${countryCode}&include=albums`,
-        `${API}/searchResults/${enc}/relationships/albums?countryCode=${countryCode}&include=albums`,
-        `${API}/searchresults/${plus}/relationships/albums?countryCode=${countryCode}&include=albums`,
-        `${API}/searchresults/${enc}?countryCode=${countryCode}&include=albums`,
-        `${API}/searchResults/${enc}?countryCode=${countryCode}&include=albums`,
+        `${API}/searchResults/${query.replace(/\s+/g, "+")}${rel}`,
+        `${API}/searchResults/${query.replace(/\s+/g, "-")}${rel}`,
+        `${API}/searchResults/${query.replace(/\s+/g, "")}${rel}`,
+        `${API}/searchResults/${encodeURIComponent(encodeURIComponent(query))}${rel}`,
+        `${API}/searchResults/${encodeURIComponent(query.toLowerCase().replace(/\s+/g, "+"))}${rel}`,
       ];
       const tried = [];
       for (const c of candidates) {
@@ -140,7 +142,9 @@ export default async function handler(req, res) {
     }
     // Albums live on a relationship of the search result, not on the search
     // result itself. Asking for them by path is what actually returns them.
-    const url = `${API}/searchresults/${encodeURIComponent(query)}/relationships/albums`
+    // Path is camelCase -- `searchresults` 404s. Spaces are sent as "+";
+    // %20 is rejected with INVALID_RESOURCE_ID.
+    const url = `${API}/searchResults/${query.replace(/\s+/g, "+")}/relationships/albums`
       + `?countryCode=${countryCode}&include=albums`;
 
     const r = await fetch(url, {
