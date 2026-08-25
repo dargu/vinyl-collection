@@ -42,6 +42,7 @@ function mapRecordRow(row) {
     original_year: row.original_year,
     pressing_year: row.pressing_year,
     cover_url: row.cover_url,
+    tidal_url: row.tidal_url || null, // resolved once; null falls back to a search link
     history: row.history,
     listening_notes: row.listening_notes,
     featuredVG: !!row.played_at_vg_legacy, // read-only now -- see FEATURE_IDEAS.md "Sessions tab"
@@ -227,6 +228,7 @@ async function updateRecord(id, fields) {
   if ("original_year" in fields) patch.original_year = fields.original_year || null;
   if ("pressing_year" in fields) patch.pressing_year = fields.pressing_year || null;
   if ("notes" in fields) patch.my_notes = fields.notes || null;
+  if ("tidal_url" in fields) patch.tidal_url = fields.tidal_url || null;
   if ("owner" in fields) patch.owner = fields.owner || "Diego";
   if ("history" in fields) patch.history = fields.history || null;
   if ("listening_notes" in fields) patch.listening_notes = fields.listening_notes || null;
@@ -261,6 +263,18 @@ async function findByDiscogsId(releaseId, owner) {
     .maybeSingle();
   if (error) return null;
   return data;
+}
+
+// ---------- Tidal lookup (via our own /api/tidal) ----------
+// Credentials are server-side only; see api/tidal.js. Call this once per
+// album and store the result -- Tidal rate-limits aggressively.
+async function tidalLookup(artist, album, country) {
+  const params = { artist, album };
+  if (country) params.country = country;
+  const res = await fetch(`/api/tidal?${new URLSearchParams(params).toString()}`);
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || "Tidal lookup failed.");
+  return body; // { found: true, id, title, url } | { found: false }
 }
 
 // ---------- Discogs lookup (via our own /api/discogs, never direct) ----------
@@ -406,6 +420,7 @@ window.VC = {
   discogsSearch,
   discogsSearchCatno,
   discogsRelease,
+  tidalLookup,
   insertWishlistItem,
   removeWishlistItem,
   markWishlistBought,

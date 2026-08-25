@@ -258,6 +258,52 @@ function Notes({ recId, isOwner }) {
   );
 }
 
+// Owner-only: find this album on Tidal and save the link on the record.
+// Deliberately a manual, one-at-a-time action rather than something that
+// fires on page load -- Tidal rate-limits hard, and an album's URL never
+// changes, so this only ever needs to run once per record.
+function TidalResolver({ rec, onSaveRecord }) {
+  const [state, setState] = useState_d("idle"); // idle | working | none | error
+  const [msg, setMsg] = useState_d("");
+
+  async function run() {
+    setState("working"); setMsg("");
+    try {
+      const hit = await window.VC.tidalLookup(rec.artist, rec.album);
+      if (!hit.found) { setState("none"); return; }
+      await onSaveRecord(rec.id, { tidal_url: hit.url });
+      setState("idle");
+    } catch (e) {
+      setState("error");
+      setMsg(e.message || "That lookup didn't work.");
+    }
+  }
+
+  if (rec.tidal_url) {
+    return (
+      <div className="tidalfix muted small">
+        Tidal link saved.
+        <button className="btn btn--xs btn--ghost" onClick={() => onSaveRecord(rec.id, { tidal_url: null })}>Clear</button>
+        <button className="btn btn--xs btn--ghost" onClick={run} disabled={state === "working"}>
+          {state === "working" ? "Looking…" : "Look up again"}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="tidalfix muted small">
+      {state === "none"
+        ? "Tidal has no match for this one — the button stays a search."
+        : "Tidal button is a search."}
+      <button className="btn btn--xs btn--ghost" onClick={run} disabled={state === "working"}>
+        {state === "working" ? "Looking…" : "Find it on Tidal"}
+      </button>
+      {state === "error" && <span style={{ color: "var(--accent)" }}>{msg}</span>}
+    </div>
+  );
+}
+
 // `preview` mode is for wishlist items: albums you don't own yet, so there's
 // no record row behind them. That means no Edit button (nothing to update)
 // and no friends' notes (they'd be written against a record_id that doesn't
@@ -287,7 +333,11 @@ function Detail({ rec, onClose, isOwner, onSaveRecord, preview }) {
 
   const spotifySearch = `https://open.spotify.com/search/${encodeURIComponent(rec.artist + " " + rec.album)}`;
   const appleSearch = `https://music.apple.com/us/search?term=${encodeURIComponent(rec.artist + " " + rec.album)}`;
+  // A resolved album link when we have one, otherwise the old search.
+  // Spotify and Apple stay as searches -- only Tidal has been wired up to
+  // a real lookup (see api/tidal.js).
   const tidalSearch = `https://tidal.com/browse/search?q=${encodeURIComponent(rec.artist + " " + rec.album)}`;
+  const tidalHref = rec.tidal_url || tidalSearch;
 
   return (
     <div className="overlay" onClick={onClose}>
@@ -315,8 +365,9 @@ function Detail({ rec, onClose, isOwner, onSaveRecord, preview }) {
             <div className="detail__listen">
               <h4 className="section-h">Listen on</h4>
               <div className="listen__btns">
-                <a className="listen__btn" href={tidalSearch} target="_blank" rel="noreferrer" data-svc="tidal">
-                  <span className="listen__btn-lbl">Tidal</span>
+                <a className="listen__btn" href={tidalHref} target="_blank" rel="noreferrer" data-svc="tidal"
+                   title={rec.tidal_url ? "Opens this album on Tidal" : "Opens a Tidal search — not yet matched to an album"}>
+                  <span className="listen__btn-lbl">Tidal{rec.tidal_url ? "" : " ⌕"}</span>
                   <span className="listen__btn-arrow mono" aria-hidden="true">↗</span>
                 </a>
                 <a className="listen__btn" href={spotifySearch} target="_blank" rel="noreferrer" data-svc="spotify">
@@ -328,6 +379,9 @@ function Detail({ rec, onClose, isOwner, onSaveRecord, preview }) {
                   <span className="listen__btn-arrow mono" aria-hidden="true">↗</span>
                 </a>
               </div>
+              {isOwner && !preview && onSaveRecord && (
+                <TidalResolver rec={rec} onSaveRecord={onSaveRecord} />
+              )}
               <div className="listen__embed listen__embed--review">
                 <AlbumContext rec={rec} />
               </div>

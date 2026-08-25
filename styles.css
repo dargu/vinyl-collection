@@ -945,3 +945,4 @@ button.badge--notyet:not(:disabled):hover {
 .detail__previewnote { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--hair-2); }
 .editrec__othergenre { display: flex; gap: 8px; align-items: center; }
 .editrec__othergenre .input { flex: 1; min-width: 0; }
+.tidalfix { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
