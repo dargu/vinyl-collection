@@ -47,15 +47,34 @@ async function getToken(id, secret) {
   return cachedToken;
 }
 
-// Tidal speaks JSON:API: the search response lists album IDs under
-// relationships, and the album objects themselves arrive in `included`.
+// Tidal speaks JSON:API, and the album refs land in a different place
+// depending on which endpoint you hit:
+//
+//   /searchresults/{q}/relationships/albums  -> data IS the array of refs
+//   /searchresults/{q}?include=albums        -> data.relationships.albums.data
+//
+// Handle both rather than betting on one, since the first returned
+// found:false when only the second shape was being parsed.
 function firstAlbum(body) {
-  const rel = body && body.data && body.data.relationships && body.data.relationships.albums;
-  const ref = rel && Array.isArray(rel.data) ? rel.data[0] : null;
-  if (!ref) return null;
+  if (!body) return null;
+
+  let ref = null;
+  if (Array.isArray(body.data)) {
+    ref = body.data.find((d) => d.type === "albums") || body.data[0];
+  } else if (body.data && body.data.relationships && body.data.relationships.albums) {
+    const rel = body.data.relationships.albums;
+    ref = Array.isArray(rel.data) ? rel.data[0] : null;
+  }
+
+  // Last resort: if refs are missing but album objects came along in
+  // `included`, take the first of those.
+  if (!ref && Array.isArray(body.included)) {
+    ref = body.included.find((x) => x.type === "albums") || null;
+  }
+  if (!ref || !ref.id) return null;
 
   const full = (body.included || []).find((x) => x.type === "albums" && x.id === ref.id);
-  const attrs = (full && full.attributes) || {};
+  const attrs = (full && full.attributes) || ref.attributes || {};
   return {
     id: ref.id,
     title: attrs.title || "",
@@ -83,7 +102,10 @@ export default async function handler(req, res) {
   try {
     const token = await getToken(clientId, clientSecret);
     const query = `${artist} ${album}`.trim();
-    const url = `${API}/searchresults/${encodeURIComponent(query)}?countryCode=${countryCode}&include=albums`;
+    // Albums live on a relationship of the search result, not on the search
+    // result itself. Asking for them by path is what actually returns them.
+    const url = `${API}/searchresults/${encodeURIComponent(query)}/relationships/albums`
+      + `?countryCode=${countryCode}&include=albums`;
 
     const r = await fetch(url, {
       headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.api+json" },
@@ -93,14 +115,22 @@ export default async function handler(req, res) {
       return res.status(429).json({ error: "Tidal is rate-limiting us. Wait a bit and try again." });
     }
     if (r.status === 404) {
-      return res.status(200).json({ found: false });
+      return res.status(200).json({ found: false, reason: "Tidal returned 404 for that search." });
     }
     if (!r.ok) {
       return res.status(502).json({ error: `Tidal responded ${r.status}` });
     }
 
-    const match = firstAlbum(await r.json());
-    if (!match) return res.status(200).json({ found: false });
+    const body = await r.json();
+
+    // ?debug=1 returns Tidal's raw response so the shape can be inspected
+    // when a lookup comes back empty. Read-only catalogue data, no secrets.
+    if (req.query.debug) {
+      return res.status(200).json({ requested: url, raw: body });
+    }
+
+    const match = firstAlbum(body);
+    if (!match) return res.status(200).json({ found: false, reason: "No album in the response — add &debug=1 to see it." });
 
     // Album pages don't change, so let the edge hold this for a long time.
     res.setHeader("Cache-Control", "public, max-age=0, s-maxage=604800");
