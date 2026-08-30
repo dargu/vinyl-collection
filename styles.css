@@ -675,13 +675,21 @@ textarea.input { padding-top: 8px; padding-bottom: 8px; height: auto; resize: ve
 .gate__hint { font-size: 11px; color: var(--muted-2); margin-top: 6px; text-align: center; letter-spacing: 0.04em; }
 
 /* ── Owner mode bar ────────────────────────────────────────────────────── */
+/* Bottom-RIGHT, not bottom-centre: centred, it sat on top of whatever you
+   were reading and over the footer. Also fades back until you point at it,
+   since it's a status indicator you rarely need to click. */
 .ownerbar {
-  position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+  position: fixed; bottom: 16px; right: 16px; left: auto; transform: none;
   background: var(--ink); color: var(--bg);
-  padding: 6px 8px 6px 16px; border-radius: 999px;
-  font-size: 12px; display: flex; align-items: center; gap: 14px;
+  padding: 5px 7px 5px 13px; border-radius: 999px;
+  font-size: 11.5px; display: flex; align-items: center; gap: 10px;
   box-shadow: 0 12px 32px -12px rgba(0,0,0,.4);
-  z-index: 50;
+  z-index: 50; opacity: 0.55; transition: opacity 140ms;
+}
+.ownerbar:hover { opacity: 1; }
+@media (max-width: 720px) {
+  /* Clear of thumbs on a phone, and out of the way of the footer. */
+  .ownerbar { bottom: 12px; right: 12px; }
 }
 .ownerbar .dot-live { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); display: inline-block; margin-right: 6px; box-shadow: 0 0 0 2px rgba(255,255,255,.1); }
 .ownerbar button { all: unset; cursor: default; background: rgba(255,255,255,.12); padding: 4px 10px; border-radius: 999px; font-size: 11.5px; }

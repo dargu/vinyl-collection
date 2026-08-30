@@ -265,18 +265,6 @@ async function findByDiscogsId(releaseId, owner) {
   return data;
 }
 
-// ---------- Tidal lookup (via our own /api/tidal) ----------
-// Credentials are server-side only; see api/tidal.js. Call this once per
-// album and store the result -- Tidal rate-limits aggressively.
-async function tidalLookup(artist, album, country) {
-  const params = { artist, album };
-  if (country) params.country = country;
-  const res = await fetch(`/api/tidal?${new URLSearchParams(params).toString()}`);
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(body.error || "Tidal lookup failed.");
-  return body; // { found: true, id, title, url } | { found: false }
-}
-
 // ---------- Discogs lookup (via our own /api/discogs, never direct) ----------
 // The token is server-side only; see api/discogs.js for why.
 
@@ -420,7 +408,6 @@ window.VC = {
   discogsSearch,
   discogsSearchCatno,
   discogsRelease,
-  tidalLookup,
   insertWishlistItem,
   removeWishlistItem,
   markWishlistBought,
