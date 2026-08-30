@@ -742,6 +742,19 @@ function AdminGate({ onUnlock }) {
   );
 }
 
+// The owner-mode indicator, shown in the page header where the "Owner
+// sign-in" button sits for everyone else -- so the same corner means the
+// same thing whether you're signed in or not. It used to float as a fixed
+// pill over the bottom of the page, which covered the artwork.
+function OwnerBadge({ onSignOut }) {
+  return (
+    <div className="ownerbar">
+      <span><span className="dot-live" />Owner mode</span>
+      <button onClick={onSignOut}>Sign out</button>
+    </div>
+  );
+}
+
 // Shared with detail.jsx's edit form so there is ONE definition of each
 // list. detail.jsx reads these off window at render time, which is after
 // every script has loaded.
@@ -750,6 +763,7 @@ window.HOUSE_GENRES = HOUSE_GENRES;
 window.OWNERS = OWNERS;
 window.FORMATS = FORMATS;
 
+window.OwnerBadge = OwnerBadge;
 window.AddNew = AddNew;
 window.WishlistView = WishlistView;
 window.AdminGate = AdminGate;

@@ -237,7 +237,7 @@ function AddPlayInline({ onAdd, onCancel, records, onAddRecord }) {
 
 // ── public: list of past sessions ───────────────────────────────────────
 
-function SessionsPage({ sessions, records, onOpen, ribbon, isOwner, go }) {
+function SessionsPage({ sessions, records, onOpen, ribbon, isOwner, go, onSignOut }) {
   const [q, setQ] = useState_s("");
   const [loc, setLoc] = useState_s("All");
   const [sort, setSort] = useState_s("new");
@@ -275,7 +275,9 @@ function SessionsPage({ sessions, records, onOpen, ribbon, isOwner, go }) {
           <div className="page-h__sub">{sessions.length} {sessions.length === 1 ? "NIGHT" : "NIGHTS"} · VINILES &amp; GALLETAS</div>
         </div>
         <div className="page-h__right">
-          {!isOwner && <button className="btn" onClick={() => go("/admin")}>Owner sign-in →</button>}
+          {isOwner
+            ? <OwnerBadge onSignOut={onSignOut} />
+            : <button className="btn" onClick={() => go("/admin")}>Owner sign-in →</button>}
         </div>
       </header>
       {ribbon}

@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="styles.css?v=37" />
+<link rel="stylesheet" href="styles.css?v=38" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
@@ -22,7 +22,7 @@
 <script type="text/babel" src="detail.jsx?v=8"></script>
 <script type="text/babel" src="admin.jsx?v=9"></script>
 <script type="text/babel" src="dashboard.jsx?v=2"></script>
-<script type="text/babel" src="sessions.jsx?v=5"></script>
+<script type="text/babel" src="sessions.jsx?v=6"></script>
 </head>
 <body>
 <div id="root"></div>
@@ -110,6 +110,12 @@ function App() {
   }, []);
 
   function go(path) { location.hash = path; }
+
+  async function signOutOwner() {
+    await window.VC.signOut();
+    setIsOwner(false);
+    go("/");
+  }
 
   // Diego's own shelf -- what the Collection/Wishlist/Dashboard pages show.
   // `records` itself holds every owner (see supabase-client.js fetchCollection)
@@ -265,9 +271,9 @@ function App() {
   return (
     <div className="app" data-theme={t.theme} data-density={t.density}>
       <main className="main">
-        {route === "/" && <BrowsePage records={myRecords} onOpen={setActive} density={t.density} isOwner={isOwner} go={go} ribbon={<NavRibbon route={route} adminTab={adminTab} go={go} records={myRecords} wishlist={wishlist} sessions={sessions} isOwner={isOwner} />} />}
-        {route === "/wishlist" && <PublicWishlistPage items={wishlist} isOwner={isOwner} go={go} onOpen={openWishItem} ribbon={<NavRibbon route={route} adminTab={adminTab} go={go} records={myRecords} wishlist={wishlist} sessions={sessions} isOwner={isOwner} />} />}
-        {route === "/sessions" && <SessionsPage sessions={sessions} records={records} onOpen={setActive} isOwner={isOwner} go={go} ribbon={<NavRibbon route={route} adminTab={adminTab} go={go} records={myRecords} wishlist={wishlist} sessions={sessions} isOwner={isOwner} />} />}
+        {route === "/" && <BrowsePage records={myRecords} onOpen={setActive} density={t.density} isOwner={isOwner} go={go} onSignOut={signOutOwner} ribbon={<NavRibbon route={route} adminTab={adminTab} go={go} records={myRecords} wishlist={wishlist} sessions={sessions} isOwner={isOwner} />} />}
+        {route === "/wishlist" && <PublicWishlistPage items={wishlist} isOwner={isOwner} go={go} onOpen={openWishItem} onSignOut={signOutOwner} ribbon={<NavRibbon route={route} adminTab={adminTab} go={go} records={myRecords} wishlist={wishlist} sessions={sessions} isOwner={isOwner} />} />}
+        {route === "/sessions" && <SessionsPage sessions={sessions} records={records} onOpen={setActive} isOwner={isOwner} go={go} onSignOut={signOutOwner} ribbon={<NavRibbon route={route} adminTab={adminTab} go={go} records={myRecords} wishlist={wishlist} sessions={sessions} isOwner={isOwner} />} />}
 
         {isAdminRoute && !isOwner && (
           // Re-check the real session rather than trusting "the sign-in
@@ -317,12 +323,6 @@ function App() {
         />
       )}
 
-      {isOwner && (
-        <div className="ownerbar">
-          <span><span className="dot-live" />Owner mode</span>
-          <button onClick={async () => { await window.VC.signOut(); setIsOwner(false); go("/"); }}>Sign out</button>
-        </div>
-      )}
 
       <TweaksPanel>
         <TweakSection label="Theme" />
@@ -363,7 +363,7 @@ function NavRibbon({ route, adminTab, go, records, wishlist, sessions, isOwner }
   );
 }
 
-function BrowsePage({ records, onOpen, density, ribbon, isOwner, go }) {
+function BrowsePage({ records, onOpen, density, ribbon, isOwner, go, onSignOut }) {
   return (
     <>
       <header className="page-h">
@@ -372,7 +372,9 @@ function BrowsePage({ records, onOpen, density, ribbon, isOwner, go }) {
           <div className="page-h__sub">{records.length} RECORDS · {new Set(records.map(r=>r.genre)).size} GENRES · {new Set(records.map(r=>r.artist)).size} ARTISTS</div>
         </div>
         <div className="page-h__right">
-          {!isOwner && <button className="btn" onClick={() => go("/admin")}>Owner sign-in →</button>}
+          {isOwner
+            ? <OwnerBadge onSignOut={onSignOut} />
+            : <button className="btn" onClick={() => go("/admin")}>Owner sign-in →</button>}
         </div>
       </header>
       {ribbon}
@@ -381,7 +383,7 @@ function BrowsePage({ records, onOpen, density, ribbon, isOwner, go }) {
   );
 }
 
-function PublicWishlistPage({ items, ribbon, isOwner, go, onOpen }) {
+function PublicWishlistPage({ items, ribbon, isOwner, go, onOpen, onSignOut }) {
   return (
     <>
       <header className="page-h">
@@ -390,7 +392,9 @@ function PublicWishlistPage({ items, ribbon, isOwner, go, onOpen }) {
           <div className="page-h__sub">{items.filter((w) => !w.bought).length} RECORDS · DIEGO'S WANT-LIST</div>
         </div>
         <div className="page-h__right">
-          {!isOwner && <button className="btn" onClick={() => go("/admin")}>Owner sign-in →</button>}
+          {isOwner
+            ? <OwnerBadge onSignOut={onSignOut} />
+            : <button className="btn" onClick={() => go("/admin")}>Owner sign-in →</button>}
         </div>
       </header>
       {ribbon}
