@@ -203,7 +203,11 @@ function Tracklist({ tracks }) {
 function Notes({ recId, isOwner }) {
   const [items, setItems] = useState_d([]);
   const [loading, setLoading] = useState_d(true);
-  const [name, setName] = useState_d(() => { try { return localStorage.getItem("vc.name") || ""; } catch { return ""; } });
+  // Deliberately NOT remembered between notes. This used to persist in
+  // localStorage so a returning friend didn't retype their name -- but the
+  // laptop gets passed around at a session, and the next person would find
+  // someone else's name already filled in and post under it.
+  const [name, setName] = useState_d("");
   const [text, setText] = useState_d("");
   const [posted, setPosted] = useState_d(false);
   const [err, setErr] = useState_d("");
@@ -223,8 +227,8 @@ function Notes({ recId, isOwner }) {
     if (!name.trim() || !text.trim()) return;
     setErr("");
     try {
-      try { localStorage.setItem("vc.name", name); } catch {}
       await window.VC.insertNote(recId, name.trim(), text.trim());
+      setName("");
       setText("");
       setPosted(true);
     } catch (e) {
