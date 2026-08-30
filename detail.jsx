@@ -264,7 +264,7 @@ function Notes({ recId, isOwner }) {
 // exist). Everything else -- cover, metadata, tracklist, streaming links --
 // works the same, which is the point of reusing this view rather than
 // building a second one to keep in sync.
-function Detail({ rec, onClose, isOwner, onSaveRecord, preview }) {
+function Detail({ rec, onClose, isOwner, onSaveRecord, preview, playInfo }) {
   if (!rec) return null;
   const [editing, setEditing] = useState_d(false);
 
@@ -362,8 +362,17 @@ function Detail({ rec, onClose, isOwner, onSaveRecord, preview }) {
               <div>
                 <dt>Played @ V&amp;G</dt>
                 <dd>
-                  {rec.featuredVG ? (
-                    <span className="badge badge--featured" title="Played at a Viniles &amp; Galletas session">★ Yes</span>
+                  {/* Derived from the real sessions, not the
+                      `played_at_vg_legacy` flag this used to read. That flag
+                      was set once during the original import and never
+                      updated, so records played at logged sessions still
+                      showed "Not yet". */}
+                  {playInfo && playInfo.count > 0 ? (
+                    <span className="badge badge--featured"
+                          title={`Played at ${playInfo.count} Viniles & Galletas session${playInfo.count === 1 ? "" : "s"}`}>
+                      ★ {playInfo.count === 1 ? "Yes" : `${playInfo.count}×`}
+                      {playInfo.last && <span className="mono badge__when">{fmtAdded(playInfo.last)}</span>}
+                    </span>
                   ) : (
                     <span className="badge badge--notyet">Not yet</span>
                   )}

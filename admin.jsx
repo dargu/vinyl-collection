@@ -1,4 +1,4 @@
-// admin.jsx — owner-only views: dashboard, add new, wishlist, loans
+// admin.jsx — owner-only views: add a record, wishlist, sign-in gate.
 
 const { useState: useState_a, useEffect: useEffect_a } = React;
 
@@ -686,71 +686,6 @@ function WishlistView({ items, onAdd, onRemove, onMarkBought, onOpen }) {
   );
 }
 
-// ── Loan tracker ────────────────────────────────────────────────────────────
-function LoansView({ loans, records, onReturn, onLoan }) {
-  const [recId, setRid] = useState_a("");
-  const [person, setPerson] = useState_a("");
-  const [note, setNote] = useState_a("");
-  const recById = Object.fromEntries(records.map((r) => [r.id, r]));
-
-  return (
-    <section className="admincard">
-      <header className="admincard__hd"><h3>On loan <span className="muted small">— {loans.length}</span></h3></header>
-      <div className="loans__form">
-        <select className="input" value={recId} onChange={(e)=>setRid(e.target.value)}>
-          <option value="">Select record…</option>
-          {records.map((r) => <option key={r.id} value={r.id}>{r.artist} — {r.album}</option>)}
-        </select>
-        <input className="input" placeholder="Borrower" value={person} onChange={(e)=>setPerson(e.target.value)} />
-        <input className="input" placeholder="Note (optional)" value={note} onChange={(e)=>setNote(e.target.value)} />
-        <button className="btn btn--solid" onClick={() => {
-          if (!recId || !person) return;
-          onLoan({ recordId: parseInt(recId,10), person, note, since: new Date().toISOString().slice(0,10) });
-          setRid(""); setPerson(""); setNote("");
-        }}>Lend</button>
-      </div>
-      <ul className="loans">
-        {loans.map((l, i) => {
-          const r = recById[l.recordId];
-          if (!r) return null;
-          return (
-            <li key={i}>
-              <span className="loan-dot" />
-              <div className="loans__main">
-                <div className="loans__rec">{r.artist} — <span className="muted">{r.album}</span></div>
-                <div className="loans__sub mono">{l.person.toUpperCase()} <span className="dot">·</span> SINCE {fmtDate(l.since).toUpperCase()}</div>
-                {l.note && <div className="loans__note">{l.note}</div>}
-              </div>
-              <button className="btn btn--ghost" onClick={() => onReturn(i)}>Mark returned</button>
-            </li>
-          );
-        })}
-      </ul>
-    </section>
-  );
-}
-
-// ── Stats strip ─────────────────────────────────────────────────────────────
-function Stats({ records, loans, wishlist }) {
-  const total = records.length;
-  const genres = new Set(records.map((r) => r.genre)).size;
-  const artists = new Set(records.map((r) => r.artist)).size;
-  const labels = new Set(records.map((r) => r.label)).size;
-  const recent = [...records].sort((a, b) => (b.acquiredAt || b.acquired || "").localeCompare(a.acquiredAt || a.acquired || ""))[0];
-
-  return (
-    <section className="stats">
-      <div className="stat"><div className="stat__n mono">{total}</div><div className="stat__l">Records</div></div>
-      <div className="stat"><div className="stat__n mono">{genres}</div><div className="stat__l">Genres</div></div>
-      <div className="stat"><div className="stat__n mono">{artists}</div><div className="stat__l">Artists</div></div>
-      <div className="stat"><div className="stat__n mono">{labels}</div><div className="stat__l">Labels</div></div>
-      <div className="stat"><div className="stat__n mono">{loans.length}</div><div className="stat__l">On loan</div></div>
-      <div className="stat"><div className="stat__n mono">{wishlist.length}</div><div className="stat__l">Wishlist</div></div>
-      {recent && <div className="stat stat--wide"><div className="stat__n stat__n--small">{recent.artist} — {recent.album}</div><div className="stat__l">Most recent acquisition</div></div>}
-    </section>
-  );
-}
-
 // ── Login gate ──────────────────────────────────────────────────────────────
 // Real Supabase auth now, not a hardcoded password in the JS bundle.
 // Only the account you create yourself (see rls_owner_fix.sql) can
@@ -817,6 +752,4 @@ window.FORMATS = FORMATS;
 
 window.AddNew = AddNew;
 window.WishlistView = WishlistView;
-window.LoansView = LoansView;
-window.Stats = Stats;
 window.AdminGate = AdminGate;

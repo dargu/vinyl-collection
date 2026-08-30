@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="styles.css?v=36" />
+<link rel="stylesheet" href="styles.css?v=37" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
@@ -19,8 +19,8 @@
 <script type="text/babel" src="tweaks-panel.jsx?v=1"></script>
 <script type="text/babel" src="cover-art.jsx?v=1"></script>
 <script type="text/babel" src="shelf.jsx?v=2"></script>
-<script type="text/babel" src="detail.jsx?v=7"></script>
-<script type="text/babel" src="admin.jsx?v=8"></script>
+<script type="text/babel" src="detail.jsx?v=8"></script>
+<script type="text/babel" src="admin.jsx?v=9"></script>
 <script type="text/babel" src="dashboard.jsx?v=2"></script>
 <script type="text/babel" src="sessions.jsx?v=5"></script>
 </head>
@@ -115,6 +115,24 @@ function App() {
   // `records` itself holds every owner (see supabase-client.js fetchCollection)
   // because Sessions needs to look up and reuse friends' records too.
   const myRecords = useMemo(() => records.filter((r) => (r.owner || "Diego") === "Diego"), [records]);
+
+  // How many times each record has actually been played at a session, and
+  // when it was last on. Replaces the `played_at_vg_legacy` flag, which was
+  // set once at import time and never updated -- so records played at real
+  // sessions were still showing "Not yet" on their detail page.
+  const playsByRecord = useMemo(() => {
+    const m = {};
+    for (const s of sessions) {
+      for (const p of s.plays || []) {
+        if (!p.recordId) continue;
+        const cur = m[p.recordId] || { count: 0, last: null };
+        cur.count += 1;
+        if (!cur.last || (s.date && s.date > cur.last)) cur.last = s.date;
+        m[p.recordId] = cur;
+      }
+    }
+    return m;
+  }, [sessions]);
 
   // The Add-a-record flow sends full metadata (cover, years, catalog no,
   // Discogs id, tracklist) -- insertRecordFull handles both that and the
@@ -295,6 +313,7 @@ function App() {
           isOwner={isOwner}
           onSaveRecord={saveRecord}
           preview={!!active.preview}
+          playInfo={playsByRecord[active.id]}
         />
       )}
 
@@ -330,7 +349,7 @@ function NavRibbon({ route, adminTab, go, records, wishlist, sessions, isOwner }
   return (
     <nav className="ribbon">
       <Tab to="/" label="All records" count={records.length} active={route === "/"} />
-      <Tab to="/wishlist" label="Wishlist" count={wishlist.length} active={route === "/wishlist"} />
+      <Tab to="/wishlist" label="Wishlist" count={wishlist.filter((w) => !w.bought).length} active={route === "/wishlist"} />
       <Tab to="/sessions" label="Sessions" count={sessions.length} active={route === "/sessions"} />
       {isOwner && <>
         <span className="ribbon__sep" />
@@ -368,7 +387,7 @@ function PublicWishlistPage({ items, ribbon, isOwner, go, onOpen }) {
       <header className="page-h">
         <div>
           <h1 className="page-h__title">Wishlist</h1>
-          <div className="page-h__sub">{items.length} RECORDS · DIEGO'S WANT-LIST</div>
+          <div className="page-h__sub">{items.filter((w) => !w.bought).length} RECORDS · DIEGO'S WANT-LIST</div>
         </div>
         <div className="page-h__right">
           {!isOwner && <button className="btn" onClick={() => go("/admin")}>Owner sign-in →</button>}
