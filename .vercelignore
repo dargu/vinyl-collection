@@ -1,0 +1,7 @@
+# Kept in git, kept off the website.
+#
+# app/ is the database's history -- schema, migrations, one-off import
+# scripts. It's version-controlled deliberately, but Vercel would otherwise
+# serve it as static files, meaning anyone could fetch the schema at
+# /app/migrations/... There's no reason to publish it.
+app/
