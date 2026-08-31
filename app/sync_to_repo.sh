@@ -10,6 +10,7 @@ DEST="$HOME/vinyl-collection"
 
 FILES=(
   ".vercelignore"
+  "README.md"
   "sessions.jsx"
   "supabase-client.js"
   "index.html"
