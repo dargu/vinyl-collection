@@ -334,6 +334,46 @@ async function markWishlistBought(wishItem, fields) {
   return newRecord;
 }
 
+// ---------- note moderation (owner only) ----------
+// Everything, in every state -- the RLS policy "owner manages notes" is
+// what allows an authenticated owner to see unapproved ones. A visitor
+// running this gets only approved notes back, which is the point.
+//
+// The album is joined in because moderation is mostly answering "what is
+// this note about", so the screen needs artist/title/cover per note.
+async function fetchAllNotes() {
+  const { data, error } = await sb
+    .from("notes")
+    .select("*, records(id, artist, title, cover_url)")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return data.map((n) => ({
+    id: n.id,
+    recordId: n.record_id,
+    who: n.author_name,
+    body: n.body,
+    when: n.created_at ? n.created_at.slice(0, 10) : null,
+    approved: !!n.approved,
+    rejected: !!n.rejected,
+    // Three derived states -- see migration 009.
+    state: n.approved ? "published" : (n.rejected ? "rejected" : "waiting"),
+    album: n.records ? n.records.title : "",
+    artist: n.records ? n.records.artist : "",
+    cover_url: n.records ? n.records.cover_url : null,
+  }));
+}
+
+// One setter for all three transitions, so the two flags can never end up
+// contradicting each other (approved AND rejected).
+async function setNoteState(id, state) {
+  const patch =
+    state === "published" ? { approved: true, rejected: false }
+    : state === "rejected" ? { approved: false, rejected: true }
+    : { approved: false, rejected: false }; // waiting
+  const { error } = await sb.from("notes").update(patch).eq("id", id);
+  if (error) throw error;
+}
+
 async function insertNote(recordId, authorName, body) {
   const { error } = await sb
     .from("notes")
@@ -412,6 +452,8 @@ window.VC = {
   removeWishlistItem,
   markWishlistBought,
   insertNote,
+  fetchAllNotes,
+  setNoteState,
   insertSession,
   updateSession,
   deleteSession,

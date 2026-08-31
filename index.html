@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="styles.css?v=38" />
+<link rel="stylesheet" href="styles.css?v=39" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
@@ -15,12 +15,12 @@
 <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 
-<script src="supabase-client.js?v=9"></script>
+<script src="supabase-client.js?v=10"></script>
 <script type="text/babel" src="tweaks-panel.jsx?v=1"></script>
 <script type="text/babel" src="cover-art.jsx?v=1"></script>
 <script type="text/babel" src="shelf.jsx?v=2"></script>
 <script type="text/babel" src="detail.jsx?v=9"></script>
-<script type="text/babel" src="admin.jsx?v=9"></script>
+<script type="text/babel" src="admin.jsx?v=10"></script>
 <script type="text/babel" src="dashboard.jsx?v=2"></script>
 <script type="text/babel" src="sessions.jsx?v=6"></script>
 </head>
@@ -52,6 +52,10 @@ function App() {
   const [active, setActive] = useState(null);
   const [isOwner, setIsOwner] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
+  // Every note in every state -- only fetchable as the owner (RLS), so it's
+  // loaded when owner mode turns on rather than in the main reload().
+  const [allNotes, setAllNotes] = useState([]);
+  const [notesLoading, setNotesLoading] = useState(false);
 
   useEffect(() => {
     const onHash = () => setRoute(readHash());
@@ -108,6 +112,26 @@ function App() {
     });
     return () => { sub && sub.subscription && sub.subscription.unsubscribe(); };
   }, []);
+
+  useEffect(() => {
+    if (!isOwner) { setAllNotes([]); return; }
+    let cancelled = false;
+    setNotesLoading(true);
+    window.VC.fetchAllNotes()
+      .then((n) => { if (!cancelled) setAllNotes(n); })
+      .catch(() => { if (!cancelled) setAllNotes([]); })
+      .finally(() => { if (!cancelled) setNotesLoading(false); });
+    return () => { cancelled = true; };
+  }, [isOwner]);
+
+  // Update in place rather than refetching: the list is short and a refetch
+  // would make the row you just acted on jump as the sections re-sort.
+  async function setNoteState(id, state) {
+    await window.VC.setNoteState(id, state);
+    setAllNotes((ns) => ns.map((n) => (n.id === id
+      ? { ...n, state, approved: state === "published", rejected: state === "rejected" }
+      : n)));
+  }
 
   function go(path) { location.hash = path; }
 
@@ -271,9 +295,9 @@ function App() {
   return (
     <div className="app" data-theme={t.theme} data-density={t.density}>
       <main className="main">
-        {route === "/" && <BrowsePage records={myRecords} onOpen={setActive} density={t.density} isOwner={isOwner} go={go} onSignOut={signOutOwner} ribbon={<NavRibbon route={route} adminTab={adminTab} go={go} records={myRecords} wishlist={wishlist} sessions={sessions} isOwner={isOwner} />} />}
-        {route === "/wishlist" && <PublicWishlistPage items={wishlist} isOwner={isOwner} go={go} onOpen={openWishItem} onSignOut={signOutOwner} ribbon={<NavRibbon route={route} adminTab={adminTab} go={go} records={myRecords} wishlist={wishlist} sessions={sessions} isOwner={isOwner} />} />}
-        {route === "/sessions" && <SessionsPage sessions={sessions} records={records} onOpen={setActive} isOwner={isOwner} go={go} onSignOut={signOutOwner} ribbon={<NavRibbon route={route} adminTab={adminTab} go={go} records={myRecords} wishlist={wishlist} sessions={sessions} isOwner={isOwner} />} />}
+        {route === "/" && <BrowsePage records={myRecords} onOpen={setActive} density={t.density} isOwner={isOwner} go={go} onSignOut={signOutOwner} ribbon={<NavRibbon route={route} adminTab={adminTab} go={go} records={myRecords} wishlist={wishlist} sessions={sessions} isOwner={isOwner} pendingNotes={allNotes.filter((n) => n.state === 'waiting').length} />} />}
+        {route === "/wishlist" && <PublicWishlistPage items={wishlist} isOwner={isOwner} go={go} onOpen={openWishItem} onSignOut={signOutOwner} ribbon={<NavRibbon route={route} adminTab={adminTab} go={go} records={myRecords} wishlist={wishlist} sessions={sessions} isOwner={isOwner} pendingNotes={allNotes.filter((n) => n.state === 'waiting').length} />} />}
+        {route === "/sessions" && <SessionsPage sessions={sessions} records={records} onOpen={setActive} isOwner={isOwner} go={go} onSignOut={signOutOwner} ribbon={<NavRibbon route={route} adminTab={adminTab} go={go} records={myRecords} wishlist={wishlist} sessions={sessions} isOwner={isOwner} pendingNotes={allNotes.filter((n) => n.state === 'waiting').length} />} />}
 
         {isAdminRoute && !isOwner && (
           // Re-check the real session rather than trusting "the sign-in
@@ -295,10 +319,11 @@ function App() {
             onWishAdd={addWish} onWishRemove={removeWish} onWishMarkBought={markWishBought} onOpenWish={openWishItem}
             onSessionAdd={addSessionFull} onSessionUpdate={updateSessionHandler} onSessionDelete={deleteSessionHandler}
             onAddRecord={addRecord}
+            notes={allNotes} notesLoading={notesLoading} onSetNoteState={setNoteState}
             onPlayAdd={addPlaySingle} onPlayRemove={removePlayHandler}
             isOwner={isOwner} go={go}
             onOpen={setActive}
-            ribbon={<NavRibbon route={route} adminTab={adminTab} go={go} records={myRecords} wishlist={wishlist} sessions={sessions} isOwner={isOwner} />}
+            ribbon={<NavRibbon route={route} adminTab={adminTab} go={go} records={myRecords} wishlist={wishlist} sessions={sessions} isOwner={isOwner} pendingNotes={allNotes.filter((n) => n.state === 'waiting').length} />}
           />
         )}
 
@@ -340,7 +365,7 @@ function App() {
 // it wasn't backed by real storage (see FEATURE_IDEAS.md "Loans
 // feature"). Better to leave it out than ship a tab that resets on
 // every refresh and pretends otherwise.
-function NavRibbon({ route, adminTab, go, records, wishlist, sessions, isOwner }) {
+function NavRibbon({ route, adminTab, go, records, wishlist, sessions, isOwner, pendingNotes }) {
   const Tab = ({ to, label, count, active }) => (
     <button className={"ribbon__tab" + (active ? " on" : "")} onClick={() => go(to)}>
       <span>{label}</span>{count != null && <span className="ribbon__count mono">{count}</span>}
@@ -358,6 +383,7 @@ function NavRibbon({ route, adminTab, go, records, wishlist, sessions, isOwner }
         <Tab to="/admin/add" label="Add record" active={adminTab === "add"} />
         <Tab to="/admin/wishlist" label="Manage wishlist" active={adminTab === "wishlist"} />
         <Tab to="/admin/sessions" label="Sessions" active={adminTab === "sessions"} />
+        <Tab to="/admin/notes" label="Notes" count={pendingNotes || null} active={adminTab === "notes"} />
       </>}
     </nav>
   );
@@ -436,9 +462,9 @@ function PublicWishlistPage({ items, ribbon, isOwner, go, onOpen, onSignOut }) {
 }
 
 // ── Admin page ────────────────────────────────────────────────────────────
-const ADMIN_TAB_TITLES = { dashboard: "Dashboard", add: "Add a record", wishlist: "Wishlist", sessions: "Sessions" };
+const ADMIN_TAB_TITLES = { dashboard: "Dashboard", add: "Add a record", wishlist: "Wishlist", sessions: "Sessions", notes: "Notes" };
 
-function AdminPage({ tab, records, allRecords, wishlist, sessions, onAdd, onAddRecord, onWishAdd, onWishRemove, onWishMarkBought, onOpenWish, onSessionAdd, onSessionUpdate, onSessionDelete, onPlayAdd, onPlayRemove, ribbon, go, onOpen }) {
+function AdminPage({ tab, records, allRecords, wishlist, sessions, notes, notesLoading, onSetNoteState, onAdd, onAddRecord, onWishAdd, onWishRemove, onWishMarkBought, onOpenWish, onSessionAdd, onSessionUpdate, onSessionDelete, onPlayAdd, onPlayRemove, ribbon, go, onOpen }) {
   return (
     <>
       <header className="page-h">
@@ -452,6 +478,7 @@ function AdminPage({ tab, records, allRecords, wishlist, sessions, onAdd, onAddR
         {tab === "dashboard" && <Dashboard records={records} loans={[]} wishlist={wishlist} go={go} onOpen={onOpen} />}
         {tab === "add" && <AddNew onAdd={onAdd} />}
         {tab === "wishlist" && <WishlistView items={wishlist} onAdd={onWishAdd} onRemove={onWishRemove} onMarkBought={onWishMarkBought} onOpen={onOpenWish} />}
+        {tab === "notes" && <NotesAdmin notes={notes} onSetState={onSetNoteState} loading={notesLoading} />}
         {tab === "sessions" && (
           <SessionsAdmin
             sessions={sessions}

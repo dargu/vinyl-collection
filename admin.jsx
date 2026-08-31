@@ -742,6 +742,114 @@ function AdminGate({ onUnlock }) {
   );
 }
 
+// ── Notes moderation ────────────────────────────────────────────────────────
+// Nothing a friend writes appears on the site until it's approved here.
+// Before this screen existed, approving meant opening Supabase's table
+// editor and flipping a boolean by hand.
+//
+// Rejecting hides a note rather than deleting it (migration 009), so
+// clicking the wrong button on something someone wrote is recoverable.
+function NoteCard({ n, onSet, busy }) {
+  return (
+    <li className="notecard">
+      {n.cover_url
+        ? <img className="notecard__art" src={n.cover_url} alt="" loading="lazy" />
+        : <div className="notecard__art notecard__art--none" />}
+      <div className="notecard__body">
+        <div className="notecard__album">
+          {n.album || <span className="muted">Unknown album</span>}
+          {n.artist && <span className="muted"> — {n.artist}</span>}
+        </div>
+        <div className="notecard__meta">
+          <span className="notecard__who">{n.who}</span>
+          <span className="dot">·</span>
+          <span className="mono">{n.when}</span>
+        </div>
+        <p className="notecard__text">{n.body}</p>
+      </div>
+      <div className="notecard__actions">
+        {n.state === "waiting" && (
+          <>
+            <button className="btn btn--xs btn--solid" disabled={busy} onClick={() => onSet(n.id, "published")}>Approve</button>
+            <button className="btn btn--xs btn--ghost" disabled={busy} onClick={() => onSet(n.id, "rejected")}>Reject</button>
+          </>
+        )}
+        {n.state === "published" && (
+          <button className="btn btn--xs btn--ghost" disabled={busy} onClick={() => onSet(n.id, "waiting")}>Un-publish</button>
+        )}
+        {n.state === "rejected" && (
+          <button className="btn btn--xs btn--ghost" disabled={busy} onClick={() => onSet(n.id, "waiting")}>Restore</button>
+        )}
+      </div>
+    </li>
+  );
+}
+
+function NotesAdmin({ notes, onSetState, loading }) {
+  const [busy, setBusy] = useState_a(false);
+  const [err, setErr] = useState_a("");
+  const [showRejected, setShowRejected] = useState_a(false);
+
+  const waiting = notes.filter((n) => n.state === "waiting");
+  const published = notes.filter((n) => n.state === "published");
+  const rejected = notes.filter((n) => n.state === "rejected");
+
+  async function set(id, state) {
+    setBusy(true); setErr("");
+    try { await onSetState(id, state); }
+    catch (e) { setErr("Couldn't save that — check your connection and try again."); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <section className="admincard">
+      <header className="admincard__hd">
+        <h3>Notes {waiting.length > 0 && <span className="muted small">— {waiting.length} waiting</span>}</h3>
+      </header>
+
+      <div className="notes-admin">
+        <p className="addrec__lede">Nothing a friend writes appears on the site until you approve it here.</p>
+        {err && <div className="addrec__err">{err}</div>}
+
+        {loading && <div className="muted small">Loading…</div>}
+
+        {!loading && waiting.length === 0 && (
+          <div className="muted small notes-admin__empty">Nothing waiting. Notes friends leave will queue up here.</div>
+        )}
+        {waiting.length > 0 && (
+          <ul className="notecards">
+            {waiting.map((n) => <NoteCard key={n.id} n={n} onSet={set} busy={busy} />)}
+          </ul>
+        )}
+
+        {published.length > 0 && (
+          <>
+            <div className="wlist__divider"><span className="mono">PUBLISHED · {published.length}</span></div>
+            <ul className="notecards">
+              {published.map((n) => <NoteCard key={n.id} n={n} onSet={set} busy={busy} />)}
+            </ul>
+          </>
+        )}
+
+        {rejected.length > 0 && (
+          <>
+            <div className="wlist__divider">
+              <button className="btn btn--xs btn--ghost" onClick={() => setShowRejected(!showRejected)}>
+                {showRejected ? "Hide" : "Show"} rejected · {rejected.length}
+              </button>
+            </div>
+            {showRejected && (
+              <ul className="notecards notecards--rejected">
+                {rejected.map((n) => <NoteCard key={n.id} n={n} onSet={set} busy={busy} />)}
+              </ul>
+            )}
+          </>
+        )}
+      </div>
+    </section>
+  );
+}
+
 // The owner-mode indicator, shown in the page header where the "Owner
 // sign-in" button sits for everyone else -- so the same corner means the
 // same thing whether you're signed in or not. It used to float as a fixed
@@ -763,6 +871,7 @@ window.HOUSE_GENRES = HOUSE_GENRES;
 window.OWNERS = OWNERS;
 window.FORMATS = FORMATS;
 
+window.NotesAdmin = NotesAdmin;
 window.OwnerBadge = OwnerBadge;
 window.AddNew = AddNew;
 window.WishlistView = WishlistView;
