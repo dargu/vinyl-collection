@@ -32,15 +32,24 @@ async function discogs(path, token) {
   return res.json();
 }
 
+// Discogs returns "Artist - Title" as one string on search results. Split it
+// so the picker can show both, and treat it as display text only -- the
+// release lookup stays the source of truth for artist and title.
+function splitDisplay(s) {
+  const raw = (s || "").trim();
+  const i = raw.indexOf(" - ");
+  if (i === -1) return { artist: "", title: raw };
+  return { artist: raw.slice(0, i).trim(), title: raw.slice(i + 3).trim() };
+}
+
 // Search results only need enough to tell pressings apart in the picker.
 // The full metadata comes later, from the release lookup, once one is picked.
 function slimSearchResult(r) {
+  const { artist, title } = splitDisplay(r.title);
   return {
     id: r.id,
-    // Discogs returns "Artist - Title" as one string here; we split it for
-    // display but never trust it as data -- the release lookup is the
-    // source of truth for artist and title.
-    display: r.title || "",
+    artist,
+    title,
     label: Array.isArray(r.label) ? r.label[0] : r.label || "",
     catno: r.catno || "",
     year: r.year || null,
