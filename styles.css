@@ -588,8 +588,9 @@ textarea.input { padding-top: 8px; padding-bottom: 8px; height: auto; resize: ve
 .presscard__art { width: 56px; height: 56px; border-radius: 3px; object-fit: cover; flex-shrink: 0; background: var(--bg-2); }
 .presscard__art--none { background: var(--hair-2); }
 .presscard__body { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-.presscard__label { font-size: 12.5px; font-weight: 500; line-height: 1.3; }
-.presscard__cat { font-size: 11px; color: var(--muted); }
+.presscard__title { font-size: 13px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+.presscard__artist { font-size: 12px; color: var(--muted); line-height: 1.3; overflow-wrap: anywhere; }
+.presscard__label { font-size: 11.5px; color: var(--muted-2); line-height: 1.3; }
 .presscard__meta { font-size: 11.5px; color: var(--muted-2); }
 
 .addrec__top { display: flex; gap: 14px; margin-bottom: 12px; }

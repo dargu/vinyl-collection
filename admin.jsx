@@ -171,8 +171,12 @@ function PickStep({ results, term, onPick, onManual, onBack, busy, setBusy }) {
               ? <img className="presscard__art" src={r.thumb} alt="" loading="lazy" />
               : <div className="presscard__art presscard__art--none" />}
             <div className="presscard__body">
-              <div className="presscard__label">{r.label || "Unknown label"}</div>
-              <div className="presscard__cat mono">{r.catno || "—"}</div>
+              <div className="presscard__title">{r.title || "Untitled release"}</div>
+              <div className="presscard__artist">{r.artist || "Unknown artist"}</div>
+              <div className="presscard__label">
+                {r.label || "Unknown label"}
+                {r.catno && <span className="mono"> {r.catno}</span>}
+              </div>
               <div className="presscard__meta">
                 {[r.year, r.format, r.country].filter(Boolean).join(" · ")}
               </div>
