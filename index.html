@@ -19,7 +19,7 @@
 <script type="text/babel" src="tweaks-panel.jsx?v=1"></script>
 <script type="text/babel" src="cover-art.jsx?v=1"></script>
 <script type="text/babel" src="shelf.jsx?v=2"></script>
-<script type="text/babel" src="detail.jsx?v=9"></script>
+<script type="text/babel" src="detail.jsx?v=10"></script>
 <script type="text/babel" src="admin.jsx?v=11"></script>
 <script type="text/babel" src="dashboard.jsx?v=2"></script>
 <script type="text/babel" src="sessions.jsx?v=6"></script>
@@ -145,6 +145,19 @@ function App() {
   // `records` itself holds every owner (see supabase-client.js fetchCollection)
   // because Sessions needs to look up and reuse friends' records too.
   const myRecords = useMemo(() => records.filter((r) => (r.owner || "Diego") === "Diego"), [records]);
+
+  // Roll the dice: open a record at random. It draws from the whole shelf,
+  // deliberately ignoring whatever the Collection page is filtered to --
+  // which is why the button sits in the page header and not the filter bar.
+  // Excluding the open record means a re-roll always moves somewhere new.
+  const [rolledId, setRolledId] = useState(null);
+  function rollDice() {
+    const pool = myRecords.filter((r) => !active || r.id !== active.id);
+    if (!pool.length) return;
+    const pick = pool[Math.floor(Math.random() * pool.length)];
+    setRolledId(pick.id);
+    setActive(pick);
+  }
 
   // How many times each record has actually been played at a session, and
   // when it was last on. Replaces the `played_at_vg_legacy` flag, which was
@@ -295,7 +308,7 @@ function App() {
   return (
     <div className="app" data-theme={t.theme} data-density={t.density}>
       <main className="main">
-        {route === "/" && <BrowsePage records={myRecords} onOpen={setActive} density={t.density} isOwner={isOwner} go={go} onSignOut={signOutOwner} ribbon={<NavRibbon route={route} adminTab={adminTab} go={go} records={myRecords} wishlist={wishlist} sessions={sessions} isOwner={isOwner} pendingNotes={allNotes.filter((n) => n.state === 'waiting').length} />} />}
+        {route === "/" && <BrowsePage records={myRecords} onOpen={setActive} onRoll={rollDice} density={t.density} isOwner={isOwner} go={go} onSignOut={signOutOwner} ribbon={<NavRibbon route={route} adminTab={adminTab} go={go} records={myRecords} wishlist={wishlist} sessions={sessions} isOwner={isOwner} pendingNotes={allNotes.filter((n) => n.state === 'waiting').length} />} />}
         {route === "/wishlist" && <PublicWishlistPage items={wishlist} isOwner={isOwner} go={go} onOpen={openWishItem} onSignOut={signOutOwner} ribbon={<NavRibbon route={route} adminTab={adminTab} go={go} records={myRecords} wishlist={wishlist} sessions={sessions} isOwner={isOwner} pendingNotes={allNotes.filter((n) => n.state === 'waiting').length} />} />}
         {route === "/sessions" && <SessionsPage sessions={sessions} records={records} onOpen={setActive} isOwner={isOwner} go={go} onSignOut={signOutOwner} ribbon={<NavRibbon route={route} adminTab={adminTab} go={go} records={myRecords} wishlist={wishlist} sessions={sessions} isOwner={isOwner} pendingNotes={allNotes.filter((n) => n.state === 'waiting').length} />} />}
 
@@ -340,11 +353,12 @@ function App() {
       {active && (
         <Detail
           rec={active.preview ? active : (records.find(r => r.id === active.id) || active)}
-          onClose={() => setActive(null)}
+          onClose={() => { setActive(null); setRolledId(null); }}
           isOwner={isOwner}
           onSaveRecord={saveRecord}
           preview={!!active.preview}
           playInfo={playsByRecord[active.id]}
+          onRoll={active.id === rolledId ? rollDice : null}
         />
       )}
 
@@ -389,7 +403,7 @@ function NavRibbon({ route, adminTab, go, records, wishlist, sessions, isOwner, 
   );
 }
 
-function BrowsePage({ records, onOpen, density, ribbon, isOwner, go, onSignOut }) {
+function BrowsePage({ records, onOpen, onRoll, density, ribbon, isOwner, go, onSignOut }) {
   return (
     <>
       <header className="page-h">
@@ -398,6 +412,17 @@ function BrowsePage({ records, onOpen, density, ribbon, isOwner, go, onSignOut }
           <div className="page-h__sub">{records.length} RECORDS · {new Set(records.map(r=>r.genre)).size} GENRES · {new Set(records.map(r=>r.artist)).size} ARTISTS</div>
         </div>
         <div className="page-h__right">
+          {records.length > 0 && (
+            <button className="btn" onClick={onRoll} title="Open a record at random, ignoring the filters">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <rect x="3" y="3" width="18" height="18" rx="4" />
+                <circle cx="8.5" cy="8.5" r="1.4" fill="currentColor" stroke="none" />
+                <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" />
+                <circle cx="15.5" cy="15.5" r="1.4" fill="currentColor" stroke="none" />
+              </svg>
+              Roll the dice
+            </button>
+          )}
           {isOwner
             ? <OwnerBadge onSignOut={onSignOut} />
             : <button className="btn" onClick={() => go("/admin")}>Owner sign-in →</button>}
