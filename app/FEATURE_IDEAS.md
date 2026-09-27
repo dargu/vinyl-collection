@@ -33,6 +33,14 @@ nothing here blocks shipping.
   each of its tags. Right now it's neither, which is the kind of gap that
   keeps producing small surprises.
 
+- **"Roll the dice".** A button that picks a record at random and opens it,
+  for when the problem isn't finding something but choosing. The opening path
+  already exists — `setActive` in `index.html` is what a shelf click calls, so
+  the button only has to pick a record and hand it over. The open question is
+  what it picks from: the whole collection, or whatever the Collection view is
+  currently filtered to. That's the difference between a true shuffle and
+  "surprise me, but keep it to Jazz", and it decides where the button lives.
+
 ## Conventions
 
 - **Formats** must match `records_format_check` exactly: LP, 2xLP, 3xLP, EP,
@@ -48,6 +56,18 @@ nothing here blocks shipping.
   House spellings settled so far: `Fela Kuti and Afrika 70`, `DARKSIDE`.
 
 ## Done (kept for context)
+
+- **Discogs search results show album and artist.** ✅ Sep 2026. The pressing
+  picker shared by Add-a-record and the wishlist listed only label, catalog
+  number and year, so searching for an album came back looking like a list of
+  record labels. The name was already being fetched: Discogs returns
+  "Artist - Title" as one string, which `slimSearchResult` passed through as
+  `display` and nothing ever rendered. Now split into `artist` and `title` in
+  `api/discogs.js`, with each card led by album and artist and label plus
+  catalog number demoted to one secondary line. Splitting on the first " - "
+  keeps hyphenated names intact (Jay-Z); an artist whose own name contains
+  " - " would still split wrong, but this is display text only — the release
+  lookup stays the source of truth once a pressing is picked.
 
 - **Notes moderation screen.** ✅ Aug 2026 (migration 009). An owner tab after
   Sessions, with a count of what's waiting. Three states: waiting, published,
