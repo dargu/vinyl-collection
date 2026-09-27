@@ -268,7 +268,7 @@ function Notes({ recId, isOwner }) {
 // exist). Everything else -- cover, metadata, tracklist, streaming links --
 // works the same, which is the point of reusing this view rather than
 // building a second one to keep in sync.
-function Detail({ rec, onClose, isOwner, onSaveRecord, preview, playInfo }) {
+function Detail({ rec, onClose, isOwner, onSaveRecord, preview, playInfo, onRoll }) {
   if (!rec) return null;
   const [editing, setEditing] = useState_d(false);
 
@@ -311,6 +311,11 @@ function Detail({ rec, onClose, isOwner, onSaveRecord, preview, playInfo }) {
             <span>{(rec.genre || "").toUpperCase()}</span>
           </div>
           <div className="detail__hdactions">
+            {/* Only when this record came up on a roll -- re-rolling from a
+                record you opened yourself isn't what the button means. */}
+            {onRoll && !editing && (
+              <button className="btn btn--xs btn--ghost" onClick={onRoll}>Roll again</button>
+            )}
             {isOwner && onSaveRecord && !preview && !editing && (
               <button className="btn btn--xs btn--ghost" onClick={() => setEditing(true)}>Edit</button>
             )}
