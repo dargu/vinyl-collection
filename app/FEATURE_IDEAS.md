@@ -33,13 +33,53 @@ nothing here blocks shipping.
   each of its tags. Right now it's neither, which is the kind of gap that
   keeps producing small surprises.
 
-- **"Roll the dice".** A button that picks a record at random and opens it,
-  for when the problem isn't finding something but choosing. The opening path
-  already exists — `setActive` in `index.html` is what a shelf click calls, so
-  the button only has to pick a record and hand it over. The open question is
-  what it picks from: the whole collection, or whatever the Collection view is
-  currently filtered to. That's the difference between a true shuffle and
-  "surprise me, but keep it to Jazz", and it decides where the button lives.
+- **Ask Claude about a record (owner mode).** A chat box in the detail view for
+  asking about the album in front of you — who else is on the session, where it
+  sits in the artist's run, what to listen for on this pressing. The record's
+  row is already loaded, so a question can carry real context (artist, album,
+  label, both years, genre, tracklist) instead of just a title.
+
+  Groundwork: `api/discogs.js` is the shape to copy — a Vercel function holding
+  a key the browser can't have. An Anthropic key would sit beside
+  `DISCOGS_TOKEN` in the same environment variables.
+
+  The catch, worth knowing before starting rather than after: owner mode is a
+  client-side check (`isOwnerSession` compares the signed-in user id against
+  `OWNER_USER_ID`), and what actually protects the data is RLS on the database.
+  An API function has neither. `/api/discogs` being wide open is harmless — it's
+  read-only lookup and Discogs rate-limits it — but an LLM endpoint spends money
+  on every call, so hiding the box from visitors is not a defense. The function
+  itself has to verify the caller's Supabase JWT and check the user id before
+  spending anything. That's the one piece this repo has never needed before.
+
+  Open question: whether answers are ephemeral or worth keeping. "The Take" on
+  the detail view is already where written context about a record lives, so a
+  good answer might belong there rather than vanishing when the panel closes.
+
+- **Personal rating.** A rating on each record — including ones owned by other
+  people — and a way to filter the Collection by it.
+
+  Where it goes: a `rating` column on `records` (migration 010) rather than a
+  separate table, since there's only ever one person doing the rating. Pin the
+  scale with a CHECK constraint, and mind the Formats lesson below — every
+  place that offers a value has to agree with the constraint. The control
+  belongs in the detail view, which is the one screen both paths already share:
+  the Collection opens it for your own records, Sessions opens it for friends'.
+  The filter is another `select` in `shelf.jsx`'s filter bar plus a clause in
+  `filtered`, and "By rating" is a natural fifth option in the sort beside it —
+  probably the more useful half of the feature.
+
+  The tension worth settling first: the Collection page only ever shows
+  `myRecords` (owner = Diego), and friends' records surface only through
+  Sessions. So rating a friend's record would work, but no filter on the
+  Collection would ever bring it back. Either the filter is understood as
+  Collection-only and rating friends' records is just for the record, or
+  rating across owners needs a view that spans them.
+
+  Open questions: the scale (five stars, ten, half-steps), and whether unrated
+  is distinct from the bottom of it. And whether visitors see the ratings — the
+  Collection is public, so that's a decision about the site's tone as much as
+  an RLS policy.
 
 ## Conventions
 
@@ -56,6 +96,21 @@ nothing here blocks shipping.
   House spellings settled so far: `Fela Kuti and Afrika 70`, `DARKSIDE`.
 
 ## Done (kept for context)
+
+- **"Roll the dice".** ✅ Sep 2026. A button on the Collection page that opens a
+  record at random, for when the problem isn't finding something but choosing.
+  It draws from the whole shelf and ignores the search box and the genre,
+  artist and label filters — which is why it sits in the page header rather
+  than the filter bar, since anything inside that bar reads as part of the
+  filtering. It picks from `myRecords`, so friends' records, which share the
+  table but never appear on this page, can't come up. Visitors can roll too.
+
+  The result is the normal detail view, so there's nothing new to learn.
+  "Roll again" appears in the detail header only when the record arrived on a
+  roll — re-rolling from a record you opened yourself isn't what the button
+  means — and the pool excludes whatever is already open, so a re-roll always
+  moves. No new CSS: it reuses `.btn` in the header and `.btn--xs .btn--ghost`
+  in the detail, so it matches its neighbours in both places.
 
 - **Discogs search results show album and artist.** ✅ Sep 2026. The pressing
   picker shared by Add-a-record and the wishlist listed only label, catalog
