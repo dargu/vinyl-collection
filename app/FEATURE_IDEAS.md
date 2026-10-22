@@ -33,14 +33,6 @@ nothing here blocks shipping.
   each of its tags. Right now it's neither, which is the kind of gap that
   keeps producing small surprises.
 
-- **"Roll the dice".** A button that picks a record at random and opens it,
-  for when the problem isn't finding something but choosing. The opening path
-  already exists — `setActive` in `index.html` is what a shelf click calls, so
-  the button only has to pick a record and hand it over. The open question is
-  what it picks from: the whole collection, or whatever the Collection view is
-  currently filtered to. That's the difference between a true shuffle and
-  "surprise me, but keep it to Jazz", and it decides where the button lives.
-
 - **Ask Claude about a record (owner mode).** A chat box in the detail view for
   asking about the album in front of you — who else is on the session, where it
   sits in the artist's run, what to listen for on this pressing. The record's
@@ -79,6 +71,21 @@ nothing here blocks shipping.
   House spellings settled so far: `Fela Kuti and Afrika 70`, `DARKSIDE`.
 
 ## Done (kept for context)
+
+- **"Roll the dice".** ✅ Sep 2026. A button on the Collection page that opens a
+  record at random, for when the problem isn't finding something but choosing.
+  It draws from the whole shelf and ignores the search box and the genre,
+  artist and label filters — which is why it sits in the page header rather
+  than the filter bar, since anything inside that bar reads as part of the
+  filtering. It picks from `myRecords`, so friends' records, which share the
+  table but never appear on this page, can't come up. Visitors can roll too.
+
+  The result is the normal detail view, so there's nothing new to learn.
+  "Roll again" appears in the detail header only when the record arrived on a
+  roll — re-rolling from a record you opened yourself isn't what the button
+  means — and the pool excludes whatever is already open, so a re-roll always
+  moves. No new CSS: it reuses `.btn` in the header and `.btn--xs .btn--ghost`
+  in the detail, so it matches its neighbours in both places.
 
 - **Discogs search results show album and artist.** ✅ Sep 2026. The pressing
   picker shared by Add-a-record and the wishlist listed only label, catalog
