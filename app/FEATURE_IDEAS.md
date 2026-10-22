@@ -56,6 +56,31 @@ nothing here blocks shipping.
   the detail view is already where written context about a record lives, so a
   good answer might belong there rather than vanishing when the panel closes.
 
+- **Personal rating.** A rating on each record — including ones owned by other
+  people — and a way to filter the Collection by it.
+
+  Where it goes: a `rating` column on `records` (migration 010) rather than a
+  separate table, since there's only ever one person doing the rating. Pin the
+  scale with a CHECK constraint, and mind the Formats lesson below — every
+  place that offers a value has to agree with the constraint. The control
+  belongs in the detail view, which is the one screen both paths already share:
+  the Collection opens it for your own records, Sessions opens it for friends'.
+  The filter is another `select` in `shelf.jsx`'s filter bar plus a clause in
+  `filtered`, and "By rating" is a natural fifth option in the sort beside it —
+  probably the more useful half of the feature.
+
+  The tension worth settling first: the Collection page only ever shows
+  `myRecords` (owner = Diego), and friends' records surface only through
+  Sessions. So rating a friend's record would work, but no filter on the
+  Collection would ever bring it back. Either the filter is understood as
+  Collection-only and rating friends' records is just for the record, or
+  rating across owners needs a view that spans them.
+
+  Open questions: the scale (five stars, ten, half-steps), and whether unrated
+  is distinct from the bottom of it. And whether visitors see the ratings — the
+  Collection is public, so that's a decision about the site's tone as much as
+  an RLS policy.
+
 ## Conventions
 
 - **Formats** must match `records_format_check` exactly: LP, 2xLP, 3xLP, EP,
