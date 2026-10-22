@@ -41,6 +41,29 @@ nothing here blocks shipping.
   currently filtered to. That's the difference between a true shuffle and
   "surprise me, but keep it to Jazz", and it decides where the button lives.
 
+- **Ask Claude about a record (owner mode).** A chat box in the detail view for
+  asking about the album in front of you — who else is on the session, where it
+  sits in the artist's run, what to listen for on this pressing. The record's
+  row is already loaded, so a question can carry real context (artist, album,
+  label, both years, genre, tracklist) instead of just a title.
+
+  Groundwork: `api/discogs.js` is the shape to copy — a Vercel function holding
+  a key the browser can't have. An Anthropic key would sit beside
+  `DISCOGS_TOKEN` in the same environment variables.
+
+  The catch, worth knowing before starting rather than after: owner mode is a
+  client-side check (`isOwnerSession` compares the signed-in user id against
+  `OWNER_USER_ID`), and what actually protects the data is RLS on the database.
+  An API function has neither. `/api/discogs` being wide open is harmless — it's
+  read-only lookup and Discogs rate-limits it — but an LLM endpoint spends money
+  on every call, so hiding the box from visitors is not a defense. The function
+  itself has to verify the caller's Supabase JWT and check the user id before
+  spending anything. That's the one piece this repo has never needed before.
+
+  Open question: whether answers are ephemeral or worth keeping. "The Take" on
+  the detail view is already where written context about a record lives, so a
+  good answer might belong there rather than vanishing when the panel closes.
+
 ## Conventions
 
 - **Formats** must match `records_format_check` exactly: LP, 2xLP, 3xLP, EP,
