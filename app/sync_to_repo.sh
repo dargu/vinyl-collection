@@ -1,12 +1,20 @@
 #!/usr/bin/env bash
 # Copies the deployable app files from the Drive project folder into the
-# local git repo (~/vinyl-collection), which is what actually gets pushed
+# local git repo (~/dev/vinyl-collection), which is what actually gets pushed
 # to GitHub/Vercel. Run this any time Claude edits app files in Drive,
 # right before you git add/commit/push.
 set -e
 
 SRC="/Users/diegoarguelles/Library/CloudStorage/GoogleDrive-diegoarguellesll@gmail.com/My Drive/03. Play/3.8 AI & Tech Experiments/Claude/Claude_Cowork/Project_Viniles/darguelles - Vinyl collection"
-DEST="$HOME/vinyl-collection"
+DEST="$HOME/dev/vinyl-collection"
+
+# Fail here rather than part-way through: without this, a DEST that doesn't
+# exist aborts on the first cp, and a stale DEST that still exists silently
+# syncs to the wrong clone while you commit from the new one.
+if [ ! -d "$DEST/.git" ]; then
+  echo "No git repo at $DEST — update DEST in this script to where the clone lives." >&2
+  exit 1
+fi
 
 FILES=(
   ".vercelignore"

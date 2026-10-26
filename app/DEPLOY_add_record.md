@@ -55,7 +55,7 @@ in the output alongside the usual files.
 ## Step 4 — Commit and push
 
 ```
-cd ~/vinyl-collection
+cd ~/dev/vinyl-collection
 git status
 git add -A
 git commit -m "Add record via Discogs search: serverless proxy, pressing picker, tracklist preview"
